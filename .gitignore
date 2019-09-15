@@ -1,0 +1,7 @@
+/out/
+/tools/clang_llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/
+/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/
+/tools/gn/
+/tools/*.zip
+/tools/ninja*/
+
