@@ -1,0 +1,33 @@
+README
+======
+
+Verified on Ubuntu 16.04 LTS, 2019-09-15
+
+```bash
+cd $ARKREPO/tools/
+
+# Prepare Clang/LLVM toolchain
+wget http://releases.llvm.org/8.0.0/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz
+tar xf ~/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz
+
+## I don't know why the official dev team replaced the '+' in file path.
+## Just follow the doc.
+mv clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04 clang_llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04
+
+# Prepare gn
+mkdir gn
+wget -O gn/gn 'https://archive.softwareheritage.org/browse/content/sha1_git:2dc0d5b26caef44f467de8120b26f8aad8b878be/raw/?filename=gn'
+chmod +x gn/gn
+
+# Prepare ninja
+## Follow the doc so we don't need to modify config files.
+mkdir ninja_1.9.0
+wget -O ninja-linux.zip 'https://github.com/ninja-build/ninja/releases/download/v1.9.0/ninja-linux.zip'
+unzip -d ninja_1.9.0 ninja-linux.zip
+chmod +x ninja_1.9.0/ninja
+
+# Here you go.
+
+```
+
+
