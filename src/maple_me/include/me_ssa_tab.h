@@ -25,7 +25,7 @@ class MeDoSSATab : public MeFuncPhase {
   virtual ~MeDoSSATab() = default;
   AnalysisResult *Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr *mrm) override;
   std::string PhaseName() const override {
-    return "ssaTab";
+    return "ssatab";
   }
 };
 
