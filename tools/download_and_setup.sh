@@ -11,8 +11,7 @@ cd "${ARK_REPO}"
 
 # Prepare Clang/LLVM toolchain
 echo 'Prepare Clang/LLVM toolchain'
-wget http://releases.llvm.org/8.0.0/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz
-tar xf ~/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz
+wget -O - http://releases.llvm.org/8.0.0/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz | tar -xJv
 
 ## I don't know why the official dev team replaced the '+' in file path.
 ## Just follow the doc.
@@ -30,6 +29,7 @@ echo 'Prepare ninja'
 mkdir ninja_1.9.0
 wget -O ninja-linux.zip 'https://github.com/ninja-build/ninja/releases/download/v1.9.0/ninja-linux.zip'
 unzip -d ninja_1.9.0 ninja-linux.zip
+rm ninja-linux.zip
 chmod +x ninja_1.9.0/ninja
 
 # Here you go.
