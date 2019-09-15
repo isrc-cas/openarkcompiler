@@ -5,3 +5,4 @@
 /tools/*.zip
 /tools/ninja*/
 
+/src/bin/maple
