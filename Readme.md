@@ -1,5 +1,14 @@
 ﻿# OpenArkCompiler
 
+## 一些技巧和使用脚本
+
+我们(软件所智能研究中心 & 重德智能)提供了一些使用的脚本来加速上手和学习：
+
+初始化：直接运行 [tools/download_and_setup.sh](tools/download_and_setup.sh)
+就可以一键设置环境和编译成功（在 Ubuntu 16.04 LTS 环境下）。
+
+
+
 ## 概述
 -----------------
 > 面向多设备、支持多语言的统一编程平台。
