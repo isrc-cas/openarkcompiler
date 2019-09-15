@@ -37,20 +37,39 @@ echo 'Here you go.'
 echo 'All deps has been established.'
 echo 'Now just run:'
 echo ''
+echo '        $ sudo apt-get update\'
+echo '        $ sudo apt-get -y install openjdk-8-jdk git-core gnupg \\'
+echo '            flex bison gperf build-essential zip curl \\'
+echo '            zlib1g-dev libc6-dev-i386 lib32ncurses5-dev \\'
+echo '            x11proto-core-dev libx11-dev lib32z-dev ccache \\'
+echo '            libgl1-mesa-dev libxml2-utils xsltproc unzip \\'
+echo '            lib32z1-dev qemu g++-multilib gcc-multilib \\'
+echo '            libglib2.0-dev libpixman-1-dev linux-libc-dev:i386\'
+echo '        $ sudo apt-get -y install gcc-5-aarch64-linux-gnu g++-5-aarch64-linux-gnu\'
 echo '        $ cd the-root-of-ark-repo'
 echo '        $ source build/envsetup.sh'
 echo '        $ make'
 echo ''
 
 # If you are really lazy like us...
-read -t 5 -p "Or perhaps you want to ask me to do it automatically? [y/N] " should_build
+read -t 20 -p "Or perhaps you want to ask me to do it automatically? [y/N] " should_build
 
 if [ x"$should_build" = x"y" -o x"$should_build" = x"Y" ]; then
+	# update is needed when you face a checksum mismatch or file not found error.
+	sudo apt-get update
+	sudo apt-get -y install openjdk-8-jdk git-core gnupg \
+		flex bison gperf build-essential zip curl \
+		zlib1g-dev libc6-dev-i386 lib32ncurses5-dev \
+		x11proto-core-dev libx11-dev lib32z-dev ccache \
+		libgl1-mesa-dev libxml2-utils xsltproc unzip \
+		lib32z1-dev qemu g++-multilib gcc-multilib \
+		libglib2.0-dev libpixman-1-dev linux-libc-dev:i386
+	sudo apt-get -y install gcc-5-aarch64-linux-gnu g++-5-aarch64-linux-gnu
+	# A tiny hack for convience.
 	[ -d '../tools/gn' ] && cd ..
 	echo "DEBUG: now at $PWD"
 	source build/envsetup.sh
 	make -j $(nproc)
-
 fi
 
-echo 'Have a nice day.'
+echo 'Done. All Good. Have a nice day. :-)'
