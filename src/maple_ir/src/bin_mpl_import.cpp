@@ -316,13 +316,13 @@ void BinaryMplImport::UpdateMethodSymbols() {
   }
 }
 
-void BinaryMplImport::ImportFieldsOfStructType(FieldVector &fields) {
+void BinaryMplImport::ImportFieldsOfStructType(FieldVector &fields, uint32 methodSize) {
   int64 size = ReadNum();
-  bool isEmpty = fields.empty();
+  int64 initSize = fields.size() + methodSize;
   for (int64 i = 0; i < size; i++) {
     FieldPair fp;
     ImportFieldPair(fp);
-    if (isEmpty) {
+    if (initSize == 0) {
       fields.push_back(fp);
     }
   }
@@ -341,9 +341,10 @@ void BinaryMplImport::ImportMethodsOfStructType(MethodVector &methods) {
 }
 
 void BinaryMplImport::ImportStructTypeData(MIRStructType *type) {
-  ImportFieldsOfStructType(type->GetFields());
-  ImportFieldsOfStructType(type->GetStaticFields());
-  ImportFieldsOfStructType(type->GetParentFields());
+  uint32 methodSize = type->GetMethods().size();
+  ImportFieldsOfStructType(type->GetFields(), methodSize);
+  ImportFieldsOfStructType(type->GetStaticFields(), methodSize);
+  ImportFieldsOfStructType(type->GetParentFields(), methodSize);
   ImportMethodsOfStructType(type->GetMethods());
   type->SetIsImported(imported);
 }
@@ -388,9 +389,6 @@ void BinaryMplImport::ImportInfoOfClassType(std::vector<bool> &infoIsString, std
 void BinaryMplImport::ImportPragmaOfClassType(std::vector<MIRPragma*> &pragmas) {
   int64 size = ReadNum();
   bool isEmpty = pragmas.empty();
-  if (!isEmpty) {
-    LogInfo::MapleLogger() << "The pragmas list is not empty, do not need to add new pragma to it" << std::endl;
-  }
   for (int64 i = 0; i < size; i++) {
     MIRPragma *pragma = ImportPragma();
     if (isEmpty) {
