@@ -47,8 +47,6 @@ class CheckCastGenerator : public FuncOptimizeImpl {
   void GenCheckCast(BaseNode *stmt);
   BaseNode *GetObjectShadow(BaseNode *opnd);
   MIRSymbol *GetOrCreateClassInfoSymbol(const std::string &className);
-  bool FindUseExpr(BaseNode *node, StIdx idx);
-  bool FindUse(StIdx idx);
 };
 
 class DoCheckCastGeneration : public ModulePhase {
@@ -66,7 +64,6 @@ class DoCheckCastGeneration : public ModulePhase {
     return nullptr;
   }
 };
-
 
 }  // namespace maple
 #endif  // MPL2MPL_INCLUDE_GEN_CHECK_CAST_H

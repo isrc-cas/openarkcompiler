@@ -28,7 +28,7 @@
 #include "me_ssa.h"
 
 namespace maple {
-class MirCFG;
+class MeCFG;
 class MeIRMap;
 #if DEBUG
 extern MIRModule *g_mirmodule;
@@ -316,7 +316,7 @@ class MeFunction : public FuncEmit {
   void CreateBBLabel(BB *bb);
   /* clone stmtnodes from orig to newbb */
   void CloneBasicBlock(BB *newbb, BB *orig);
-  BB *SplitBB(BB *bb, StmtNode *splitPoint);
+  BB *SplitBB(BB *bb, StmtNode *splitPoint, BB *newBB = nullptr);
   const bool HasException() const {
     return hasEH;
   }
@@ -398,11 +398,11 @@ class MeFunction : public FuncEmit {
     return endTryBB2TryBB[endTry];
   }
 
-  MirCFG *GetTheCfg() {
+  MeCFG *GetTheCfg() {
     return theCFG;
   }
 
-  void SetTheCfg(MirCFG *currTheCfg) {
+  void SetTheCfg(MeCFG *currTheCfg) {
     theCFG = currTheCfg;
   }
 
@@ -416,6 +416,10 @@ class MeFunction : public FuncEmit {
 
   void SetNextBBId(uint32 currNextBBId) {
     nextBBId = currNextBBId;
+  }
+
+  uint32 &GetNextBBId() {
+    return nextBBId;
   }
 
   uint32 GetRegNum() const {
@@ -432,6 +436,10 @@ class MeFunction : public FuncEmit {
 
   void SetHints(uint32 num) {
     hints = num;
+  }
+
+  MemPool *GetMemPool() {
+    return memPool;
   }
 
   void PartialInit(bool isSecondPass);
@@ -451,7 +459,7 @@ class MeFunction : public FuncEmit {
   /* mempool */
   MapleUnorderedMap<LabelIdx, BB*> labelBBIdMap;
   BBPtrHolder bbVec;
-  MirCFG *theCFG;
+  MeCFG *theCFG;
   SSATab *meSSATab;
   MeIRMap *irmap;
   MapleUnorderedMap<BB*, StmtNode*> bbTryNodeMap;  // maps isTry bb to its try stmt
@@ -463,6 +471,5 @@ class MeFunction : public FuncEmit {
   bool hasEH;       /* current has try statement */
   bool secondPass;  // second pass for the same function
 };
-
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_ME_FUNCTION_H

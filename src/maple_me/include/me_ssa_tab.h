@@ -28,6 +28,5 @@ class MeDoSSATab : public MeFuncPhase {
     return "ssatab";
   }
 };
-
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_ME_SSA_TAB_H

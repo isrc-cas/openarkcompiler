@@ -20,7 +20,6 @@
 
 /* This file define data structures to store SSA information in the IR
    instructions */
-
 namespace maple {
 struct OriginalStComparator {
   bool operator()(const OriginalSt *lhs, const OriginalSt *rhs) const {
@@ -405,10 +404,9 @@ class StmtsSSAPart {
 
   template <class T>
   void SetSSAPartOf(const StmtNode *s, T *p) {
-    ssaPart[s->GetStmtID()] = p;
+    ssaPart[s->GetStmtID()] = static_cast<AccessSSANodes *>(p);
   }
 
-  template <>
   void SetSSAPartOf(const StmtNode *s, VersionSt *vst) {
     VersionStPart *vStSSAPart = GetSSAPartMp()->New<VersionStPart>();
     vStSSAPart->SetSSAVar(vst);
@@ -441,10 +439,10 @@ class AddrofSSANode : public AddrofNode {
 
   ~AddrofSSANode() {}
 
-  void Dump(const MIRModule *mod, int32 indent) const {
+  void Dump(const MIRModule &mod, int32 indent) const {
     AddrofNode::Dump(mod, indent);
     if (ssaVar != nullptr) {
-      ssaVar->Dump(mod, true);
+      ssaVar->Dump(&mod, true);
     }
   }
 
@@ -471,9 +469,9 @@ class IreadSSANode : public IreadNode {
 
   ~IreadSSANode() {}
 
-  void Dump(const MIRModule *mod, int32 indent) const {
+  void Dump(const MIRModule &mod, int32 indent) const {
     if (mayUse.GetOpnd() != nullptr) {
-      mayUse.Dump(mod);
+      mayUse.Dump(&mod);
     }
     IreadNode::Dump(mod, indent);
   }
@@ -496,10 +494,10 @@ class RegreadSSANode : public RegreadNode {
 
   ~RegreadSSANode() {}
 
-  void Dump(const MIRModule *mod, int32 indent) const {
+  void Dump(const MIRModule &mod, int32 indent) const {
     RegreadNode::Dump(mod, indent);
     if (ssaVar != nullptr) {
-      ssaVar->Dump(mod, true);
+      ssaVar->Dump(&mod, true);
     }
   }
 
@@ -531,6 +529,5 @@ inline bool HasMallocOpnd(const BaseNode *x) {
   return x->GetOpCode() == OP_malloc || x->GetOpCode() == OP_gcmalloc || x->GetOpCode() == OP_gcmallocjarray ||
          x->GetOpCode() == OP_alloca;
 }
-
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_SSA_MIR_NODES_H

@@ -44,53 +44,9 @@ std::string ReflectionAnalysis::strTabStartHot = std::string(1, '\0');
 std::string ReflectionAnalysis::strTabBothHot = std::string(1, '\0');
 std::string ReflectionAnalysis::strTabRunHot = std::string(1, '\0');
 bool ReflectionAnalysis::strTabInited = false;
-uint8 *DeflateBuffer(const uint8 *rawBuffer, uint32 rawBufferSize, uint32 *deflateSize) {
-  z_stream stream;
-  stream.zalloc = Z_NULL;
-  stream.zfree = Z_NULL;
-  stream.opaque = Z_NULL;
-  int ret = deflateInit(&stream, Z_BEST_COMPRESSION);
-  if (ret != Z_OK) {
-    return nullptr;
-  }
-  uint32 deflateMaxSize = deflateBound(&stream, rawBufferSize);
-  CHECK_FATAL(deflateMaxSize > 0, "Buffer size checkout");
-  uint8 *deflateBuffer = nullptr;
-  deflateBuffer = new uint8[deflateMaxSize];
-  stream.avail_in = rawBufferSize;
-  stream.next_in = const_cast<uint8*>(rawBuffer);
-  stream.avail_out = deflateMaxSize;
-  stream.next_out = &deflateBuffer[0];
-  ret = deflate(&stream, Z_FINISH);
-  if (ret == Z_STREAM_ERROR) {
-    delete[] deflateBuffer;
-    deflateBuffer = nullptr;
-    return nullptr;
-  }
-  *deflateSize = deflateMaxSize - stream.avail_out;
-  deflateEnd(&stream);
-  return deflateBuffer;
-}
 
 int ReflectionAnalysis::GetDeflateStringIdx(const std::string &subStr) {
-  uint32 deflateSize = 0;
-  uint32 signatureIdx;
-  char *deflateBuffer =
-      reinterpret_cast<char*>(DeflateBuffer((const uint8*)(subStr.c_str()), subStr.size(), &deflateSize));
-  // The flag length at least 6 byte, so we do not compress if compress gain less than 6 byte.
-  if (subStr.size() < deflateSize + 6) {
-    signatureIdx = FindOrInsertReflectString("0!" + subStr);
-  } else {
-    CHECK_FATAL(deflateBuffer != nullptr, "deflateBuffer check");
-    std::string deflateString(deflateBuffer, deflateBuffer + deflateSize);
-    signatureIdx = FindOrInsertReflectString(std::to_string(deflateSize) + "!" + std::to_string(subStr.size()) + "!" +
-                                             deflateString);
-  }
-  if (deflateBuffer != nullptr) {
-    delete[] deflateBuffer;
-    deflateBuffer = nullptr;
-  }
-  return signatureIdx;
+  return FindOrInsertReflectString("0!" + subStr);
 }
 
 static uint32 FirstFindOrInsertRepeatString(const std::string &str, bool isHot, uint8 hotType) {
@@ -167,26 +123,29 @@ TyIdx ReflectionAnalysis::fieldsInfoTyIdx = TyIdx(0);
 TyIdx ReflectionAnalysis::fieldsInfoCompactTyIdx = TyIdx(0);
 TyIdx ReflectionAnalysis::superclassMetadataTyIdx = TyIdx(0);
 TyIdx ReflectionAnalysis::invalidIdx = TyIdx(-1);
-static constexpr int kModPublic = 1;                 // 0x00000001
-static constexpr int kModPrivate = 2;                // 0x00000002
-static constexpr int kModProtected = 3;              // 0x00000004
-static constexpr int kModStatic = 4;                 // 0x00000008
-static constexpr int kModFinal = 5;                  // 0x00000010
-static constexpr int kModSynchronized = 6;           // 0x00000020
-static constexpr int kModVolatile = 7;               // 0x00000040
-static constexpr int kModTransient = 8;              // 0x00000080
-static constexpr int kModNative = 9;                 // 0x00000100
-static constexpr int kModAbstract = 11;              // 0x00000400
-static constexpr int kModStrict = 12;                // 0x00000800
-static constexpr int kModSynthetic = 13;             // 0x00001000
-static constexpr int kModConstructor = 17;           // 0x00010000
-static constexpr int kModDefault = 22;               // 0x00400000
-static constexpr int kModBridge = 7;                 // 0x00000040
-static constexpr int kModVarargs = 8;                // 0x00000080
-static constexpr int kModEnum = 15;                  // 0x00004000
-static constexpr int kModDeclaredSynchronized = 18;  // 0x00020000
-static constexpr int kModifierRCUnowned = 24;        // 0x00800000
-static constexpr int kModifierRCWeak = 25;           // 0x01000000
+namespace {
+constexpr int kModPublic = 1;                 // 0x00000001
+constexpr int kModPrivate = 2;                // 0x00000002
+constexpr int kModProtected = 3;              // 0x00000004
+constexpr int kModStatic = 4;                 // 0x00000008
+constexpr int kModFinal = 5;                  // 0x00000010
+constexpr int kModSynchronized = 6;           // 0x00000020
+constexpr int kModVolatile = 7;               // 0x00000040
+constexpr int kModTransient = 8;              // 0x00000080
+constexpr int kModNative = 9;                 // 0x00000100
+constexpr int kModAbstract = 11;              // 0x00000400
+constexpr int kModStrict = 12;                // 0x00000800
+constexpr int kModSynthetic = 13;             // 0x00001000
+constexpr int kModConstructor = 17;           // 0x00010000
+constexpr int kModDefault = 22;               // 0x00400000
+constexpr int kModBridge = 7;                 // 0x00000040
+constexpr int kModVarargs = 8;                // 0x00000080
+constexpr int kModEnum = 15;                  // 0x00004000
+constexpr int kModDeclaredSynchronized = 18;  // 0x00020000
+constexpr int kModifierRCUnowned = 24;        // 0x00800000
+constexpr int kModifierRCWeak = 25;           // 0x01000000
+}
+
 
 uint32 GetMethodModifier(FuncAttrs fa) {
   return (static_cast<unsigned char>(fa.GetAttr(FUNCATTR_public)) << (kModPublic - 1)) |
@@ -450,20 +409,21 @@ uint16 GetFieldHash(std::vector<std::pair<FieldPair, uint16>> &fieldV, FieldPair
 }
 
 static void DelimeterConvert(std::string &str) {
+  constexpr size_t kNextPos = 2;
   size_t loc = str.find("`");
   while (loc != std::string::npos) {
     str.replace(loc, 1, "``");
-    loc = str.find("`", loc + 2);
+    loc = str.find("`", loc + kNextPos);
   }
   loc = str.find("!");
   while (loc != std::string::npos) {
     str.replace(loc, 1, "`!");
-    loc = str.find("!", loc + 2);
+    loc = str.find("!", loc + kNextPos);
   }
   loc = str.find("|");
   while (loc != std::string::npos) {
     str.replace(loc, 1, "`|");
-    loc = str.find("|", loc + 2);
+    loc = str.find("|", loc + kNextPos);
   }
 }
 
@@ -729,17 +689,17 @@ MIRSymbol *ReflectionAnalysis::GenMethodsMetaData(const Klass *klass) {
       flag |= kMethodAbstract;
     }
     uint16 hash = func->GetHashCode();
-    flag |= (hash << 6);  // hash 10 bit
+    flag |= (hash << kNoHashBits);  // hash 10 bit
     // @method_in_vtable_index
     uint32 methodInVtabIndex = static_cast<uint32>(static_cast<int32>(GetMethodInVtabIndex(klass, func)));
     methodInVtabIndex &= 0xFFFF;
-    mirBuilder.AddIntFieldConst(methodsInfoType, newconst, fieldID++, methodInVtabIndex);
+    mirBuilder.AddIntFieldConst(*methodsInfoType, *newconst, fieldID++, methodInVtabIndex);
 
     // @declaringclass
     MIRSymbol *dklassSt = GetOrCreateSymbol(CLASSINFO_PREFIX_STR + func->GetBaseClassName(), classMetadataTyIdx);
-    mirBuilder.AddAddrofFieldConst(methodsInfoType, newconst, fieldID++, dklassSt);
+    mirBuilder.AddAddrofFieldConst(*methodsInfoType, *newconst, fieldID++, *dklassSt);
     // @addr : Function address
-    mirBuilder.AddAddroffuncFieldConst(methodsInfoType, newconst, fieldID++, funcSym);
+    mirBuilder.AddAddroffuncFieldConst(*methodsInfoType, *newconst, fieldID++, *funcSym);
 
     // @modifier
     uint32 mod = GetMethodModifier(func->GetFuncAttrs());
@@ -747,30 +707,29 @@ MIRSymbol *ReflectionAnalysis::GenMethodsMetaData(const Klass *klass) {
     if (klass->IsInterface() && !func->GetAttr(FUNCATTR_abstract) && !func->GetAttr(FUNCATTR_static)) {
       mod |= (1 << (kModDefault));
     }
-    mirBuilder.AddIntFieldConst(methodsInfoType, newconst, fieldID++, mod);
+    mirBuilder.AddIntFieldConst(*methodsInfoType, *newconst, fieldID++, mod);
     // @methodname
     std::string baseName = basenameMp[func->GetBaseFuncNameStrIdx().GetIdx()];
     uint32 methodnameIdx = FindOrInsertReflectString(baseName);
-    mirBuilder.AddIntFieldConst(methodsInfoType, newconst, fieldID++, methodnameIdx);
+    mirBuilder.AddIntFieldConst(*methodsInfoType, *newconst, fieldID++, methodnameIdx);
     // @methodsignature
     std::string fullname = fullnameMp[func->GetBaseFuncNameWithTypeStrIdx().GetIdx()];
     std::string signature = GetSignatureFromFullName(fullname);
     ConvertMethodSig(signature);
     std::vector<std::string> typeNames;
     GetSignatureTypeNames(signature.c_str(), typeNames);
-    uint32 signatureIdx = 0;
-    signatureIdx = FindOrInsertReflectString(signature);
-    mirBuilder.AddIntFieldConst(methodsInfoType, newconst, fieldID++, signatureIdx);
+    uint32 signatureIdx = FindOrInsertReflectString(signature);
+    mirBuilder.AddIntFieldConst(*methodsInfoType, *newconst, fieldID++, signatureIdx);
     // @annotation
     int annotationIdx = SolveAnnotation(classType, func);
-    mirBuilder.AddIntFieldConst(methodsInfoType, newconst, fieldID++, annotationIdx);
-    mirBuilder.AddIntFieldConst(methodsInfoType, newconst, fieldID++, flag);
+    mirBuilder.AddIntFieldConst(*methodsInfoType, *newconst, fieldID++, annotationIdx);
+    mirBuilder.AddIntFieldConst(*methodsInfoType, *newconst, fieldID++, flag);
     // @argsize: Number of arguments.
     size_t argsSize = func->GetParamSize();
-    mirBuilder.AddIntFieldConst(methodsInfoType, newconst, fieldID++, argsSize);
+    mirBuilder.AddIntFieldConst(*methodsInfoType, *newconst, fieldID++, argsSize);
 #ifndef USE_32BIT_REF
     // @padding
-    mirBuilder.AddIntFieldConst(methodsInfoType, newconst, fieldID++, 0);
+    mirBuilder.AddIntFieldConst(*methodsInfoType, *newconst, fieldID++, 0);
 #endif
     aggconst->GetConstVec().push_back(newconst);
   }
@@ -790,7 +749,7 @@ MIRSymbol *ReflectionAnalysis::GenSuperClassMetaData(const Klass *klass, std::li
   for (auto it = superClassList.begin(); it != superClassList.end(); ++it) {
     MIRSymbol *dklassSt = GetOrCreateSymbol(CLASSINFO_PREFIX_STR + (*it)->GetKlassName(), classMetadataTyIdx);
     MIRAggConst *newconst = mirModule->GetMemPool()->New<MIRAggConst>(mirModule, superclassMetadataType);
-    mirBuilder.AddAddrofFieldConst(superclassMetadataType, newconst, 1, dklassSt);
+    mirBuilder.AddAddrofFieldConst(*superclassMetadataType, *newconst, 1, *dklassSt);
     aggconst->GetConstVec().push_back(newconst);
   }
   MIRSymbol *superclassArraySt =
@@ -809,6 +768,10 @@ static void ConvertFieldName(std::string &fieldname, bool staticfield) {
     CHECK_FATAL(pos1 != fieldname.npos, "fieldname not found");
     int fieldLength = strlen(kClassNameSplitterStr);
     fieldname = fieldname.substr(pos1 + fieldLength);
+    size_t pos2 = fieldname.find(kNameSplitterStr);
+    if (pos2 != fieldname.npos) {
+      fieldname = fieldname.substr(0, pos2);
+    }
   }
   fieldname = NameMangler::DecodeName(fieldname);
 }
@@ -890,40 +853,40 @@ MIRSymbol *ReflectionAnalysis::GenFieldsMetaData(const Klass *klass) {
         gvarSt->SetAttr(ATTR_weak);
         gvarSt->SetAttr(ATTR_static);
       }
-      mirBuilder.AddAddrofFieldConst(fieldsInfoType, newconst, fieldID++, gvarSt);
+      mirBuilder.AddAddrofFieldConst(*fieldsInfoType, *newconst, fieldID++, *gvarSt);
     } else {
       // Offset of the instance field, we fill the index of fields here and let CG to fill in.
       FieldID fldID = mirBuilder.GetStructFieldIDFromNameAndTypeParentFirstFoundInChild(
           klass->GetMIRClassType(), originFieldname.c_str(), fieldP.second.first);
-      mirBuilder.AddIntFieldConst(fieldsInfoType, newconst, fieldID++, fldID);
+      mirBuilder.AddIntFieldConst(*fieldsInfoType, *newconst, fieldID++, fldID);
     }
     // @modifier
     FieldAttrs fa = fieldP.second.second;
-    mirBuilder.AddIntFieldConst(fieldsInfoType, newconst, fieldID++, GetFieldModifier(fa));
+    mirBuilder.AddIntFieldConst(*fieldsInfoType, *newconst, fieldID++, GetFieldModifier(fa));
     ConvertFieldName(fieldname, staticfield);
     uint32 fieldname32Idx = FindOrInsertReflectString(fieldname);
     uint32 typeNameIdx = GetTypeNameIdxFromType(ty, klass, fieldname);
     // @flag
     uint16 hash = GetFieldHash(fieldHashvec, fieldP);
-    uint16 flag = (hash << 6);  // Hash 10 bit.
-    mirBuilder.AddIntFieldConst(fieldsInfoType, newconst, fieldID++, flag);
+    uint16 flag = (hash << kNoHashBits);  // Hash 10 bit.
+    mirBuilder.AddIntFieldConst(*fieldsInfoType, *newconst, fieldID++, flag);
     // @index
-    mirBuilder.AddIntFieldConst(fieldsInfoType, newconst, fieldID++, idx);
+    mirBuilder.AddIntFieldConst(*fieldsInfoType, *newconst, fieldID++, idx);
     // @type :  Klass for type.
     // It's stored as type name, it's stored as a MIRIntConst.
-    mirBuilder.AddIntFieldConst(fieldsInfoType, newconst, fieldID++, typeNameIdx);
+    mirBuilder.AddIntFieldConst(*fieldsInfoType, *newconst, fieldID++, typeNameIdx);
     // @fieldname : Offset of the name in *local* strTab.
     // In CG, we need to fill the offset as (__reflection_strtab___$file + offset of name).
-    mirBuilder.AddIntFieldConst(fieldsInfoType, newconst, fieldID++, fieldname32Idx);
+    mirBuilder.AddIntFieldConst(*fieldsInfoType, *newconst, fieldID++, fieldname32Idx);
     //  @annotation
     std::string annoArr;
     std::map<int, int> idxNumMap;
     GeneAnnotation(idxNumMap, annoArr, classType, kPragmaVar, fieldname, ty->GetTypeIndex());
     uint32 annotationIdx = GetAnnoCstrIndex(idxNumMap, annoArr);
-    mirBuilder.AddIntFieldConst(fieldsInfoType, newconst, fieldID++, annotationIdx);
+    mirBuilder.AddIntFieldConst(*fieldsInfoType, *newconst, fieldID++, annotationIdx);
     //  @declaring class
     MIRSymbol *dklassSt = GetOrCreateSymbol(CLASSINFO_PREFIX_STR + klass->GetKlassName(), classMetadataTyIdx);
-    mirBuilder.AddAddrofFieldConst(fieldsInfoType, newconst, fieldID++, dklassSt);
+    mirBuilder.AddAddrofFieldConst(*fieldsInfoType, *newconst, fieldID++, *dklassSt);
     aggconst->GetConstVec().push_back(newconst);
     idx++;
   }
@@ -1180,7 +1143,7 @@ void ReflectionAnalysis::GenClassMetaData(Klass *klass) {
   uint32 fieldID = 1;
   // @classname
   uint32 nameIdx = FindOrInsertReflectString(klassJavaDescriptor);
-  mirBuilder.AddIntFieldConst(classMetadataROType, newconst, fieldID++, nameIdx);
+  mirBuilder.AddIntFieldConst(*classMetadataROType, *newconst, fieldID++, nameIdx);
   // @iFields: All instance fields.
   int numOfFields = 0;
   bool hasAdded = false;
@@ -1189,7 +1152,7 @@ void ReflectionAnalysis::GenClassMetaData(Klass *klass) {
         kFieldsInfoPrefixStr + NameMangler::GetInternalNameLiteral(kJavaLangObjectStr));
     MIRSymbol *fieldsSt = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(stridx);
     if (fieldsSt != nullptr) {
-      mirBuilder.AddAddrofFieldConst(classMetadataROType, newconst, fieldID++, fieldsSt);
+      mirBuilder.AddAddrofFieldConst(*classMetadataROType, *newconst, fieldID++, *fieldsSt);
       hasAdded = true;
     }
   }
@@ -1198,9 +1161,9 @@ void ReflectionAnalysis::GenClassMetaData(Klass *klass) {
     if (fieldsSt != nullptr) {
       numOfFields = static_cast<MIRAggConst*>(fieldsSt->GetKonst())->GetConstVec().size();
       // All meta data will be weak if dummy constructors.
-      mirBuilder.AddAddrofFieldConst(classMetadataROType, newconst, fieldID++, fieldsSt);
+      mirBuilder.AddAddrofFieldConst(*classMetadataROType, *newconst, fieldID++, *fieldsSt);
     } else {
-      mirBuilder.AddIntFieldConst(classMetadataROType, newconst, fieldID++, 0);
+      mirBuilder.AddIntFieldConst(*classMetadataROType, *newconst, fieldID++, 0);
     }
   }
   // @methods: All methods.
@@ -1209,9 +1172,9 @@ void ReflectionAnalysis::GenClassMetaData(Klass *klass) {
   methodsSt = GenMethodsMetaData(klass);
   if (methodsSt != nullptr) {
     numOfMethods = static_cast<MIRAggConst*>(methodsSt->GetKonst())->GetConstVec().size();
-    mirBuilder.AddAddrofFieldConst(classMetadataROType, newconst, fieldID++, methodsSt);
+    mirBuilder.AddAddrofFieldConst(*classMetadataROType, *newconst, fieldID++, *methodsSt);
   } else {
-    mirBuilder.AddIntFieldConst(classMetadataROType, newconst, fieldID++, 0);
+    mirBuilder.AddIntFieldConst(*classMetadataROType, *newconst, fieldID++, 0);
   }
   // @superclass: Super class and a list of implemented interfaces.
   std::list<Klass*> superClassList;
@@ -1239,16 +1202,16 @@ void ReflectionAnalysis::GenClassMetaData(Klass *klass) {
   size_t superClassSize = superClassList.size();
   if (superClassSize >= 1) {
     MIRSymbol *superClassSymbolType = GenSuperClassMetaData(klass, superClassList);
-    mirBuilder.AddAddrofFieldConst(classMetadataROType, newconst, fieldID++, superClassSymbolType);
+    mirBuilder.AddAddrofFieldConst(*classMetadataROType, *newconst, fieldID++, *superClassSymbolType);
   } else {
-    mirBuilder.AddIntFieldConst(classMetadataROType, newconst, fieldID++, 0);
+    mirBuilder.AddIntFieldConst(*classMetadataROType, *newconst, fieldID++, 0);
   }
   // @numoffields: Num of fields (own).
   CHECK_FATAL(numOfFields <= 0xffff, "Error:the num of fields is too large");
-  mirBuilder.AddIntFieldConst(classMetadataROType, newconst, fieldID++, numOfFields);
+  mirBuilder.AddIntFieldConst(*classMetadataROType, *newconst, fieldID++, numOfFields);
   // @numofmethods: Num of methods in vtable.
   CHECK_FATAL(numOfMethods <= 0xffff, "Error:the num of methods is too large");
-  mirBuilder.AddIntFieldConst(classMetadataROType, newconst, fieldID++, numOfMethods);
+  mirBuilder.AddIntFieldConst(*classMetadataROType, *newconst, fieldID++, numOfMethods);
   // Do annotation.
   std::string annoArray;
   std::map<int, int> idxNumMap;
@@ -1261,24 +1224,24 @@ void ReflectionAnalysis::GenClassMetaData(Klass *klass) {
   // Array class and primitive class is not generated by compiler.
   uint32 flag = klass->GetFlag(kClassHasFinalizer | CLASS_REFERENCE | kClassFinalizerreferenceSentinel);
   flag = isAnonymous ? (flag | kClassIsanonymousclass) : flag;
-  mirBuilder.AddIntFieldConst(classMetadataROType, newconst, fieldID++, flag);
+  mirBuilder.AddIntFieldConst(*classMetadataROType, *newconst, fieldID++, flag);
   // @numofsuperclasses
   CHECK_FATAL(superClassSize <= 0xffff, "Error:the size of superClass is too big");
-  mirBuilder.AddIntFieldConst(classMetadataROType, newconst, fieldID++, superClassSize);
+  mirBuilder.AddIntFieldConst(*classMetadataROType, *newconst, fieldID++, superClassSize);
   // @padding
-  mirBuilder.AddIntFieldConst(classMetadataROType, newconst, fieldID++, 0);
+  mirBuilder.AddIntFieldConst(*classMetadataROType, *newconst, fieldID++, 0);
 #endif  // USE_32BIT_REF
   // @modifier: For class fill ClassAccessFlags.
   uint32 modifier = GetClassAccessFlags(classType);
-  mirBuilder.AddIntFieldConst(classMetadataROType, newconst, fieldID++, modifier);
+  mirBuilder.AddIntFieldConst(*classMetadataROType, *newconst, fieldID++, modifier);
   // @annotation: Set annotation field.
-  SetAnnoFieldConst(classMetadataROType, newconst, fieldID++, idxNumMap, annoArray);
+  SetAnnoFieldConst(classMetadataROType, *newconst, fieldID++, idxNumMap, annoArray);
   // @ClinitFuncAddr
   MIRSymbol *clinitFuncSym = GetClinitFuncSymbol(klass);
   if (clinitFuncSym != nullptr) {
-    mirBuilder.AddAddroffuncFieldConst(classMetadataROType, newconst, fieldID++, clinitFuncSym);
+    mirBuilder.AddAddroffuncFieldConst(*classMetadataROType, *newconst, fieldID++, *clinitFuncSym);
   } else {
-    mirBuilder.AddIntFieldConst(classMetadataROType, newconst, fieldID++, 0);
+    mirBuilder.AddIntFieldConst(*classMetadataROType, *newconst, fieldID++, 0);
   }
   MIRSymbol *classMetadataROSymbolType =
       GetOrCreateSymbol(CLASSINFO_RO_PREFIX_STR + klass->GetKlassName(), classMetadataRoTyIdx, true);
@@ -1290,38 +1253,38 @@ void ReflectionAnalysis::GenClassMetaData(Klass *klass) {
   newconst = mirModule->GetMemPool()->New<MIRAggConst>(mirModule, classMetadataType);
   fieldID = 1;
   // @shadow: multiplex used for def index.
-  mirBuilder.AddIntFieldConst(classMetadataType, newconst, fieldID++, 0);
+  mirBuilder.AddIntFieldConst(*classMetadataType, *newconst, fieldID++, 0);
   // @monitor: multiplex used for class hash.
-  mirBuilder.AddIntFieldConst(classMetadataType, newconst, fieldID++, hashIndex);
+  mirBuilder.AddIntFieldConst(*classMetadataType, *newconst, fieldID++, hashIndex);
   // @class loader: Use maximum value unsigned(-1) as non-initialized flag.
-  mirBuilder.AddIntFieldConst(classMetadataType, newconst, fieldID++, static_cast<uint16>(-1));
+  mirBuilder.AddIntFieldConst(*classMetadataType, *newconst, fieldID++, static_cast<uint16>(-1));
   // @objsize: Fill this in the CG.
-  mirBuilder.AddIntFieldConst(classMetadataType, newconst, fieldID++, 0);
+  mirBuilder.AddIntFieldConst(*classMetadataType, *newconst, fieldID++, 0);
 #ifdef USE_32BIT_REF
   // @flag
   // Array class and primitive class is not generated by compiler.
   uint32 flag = klass->GetFlag(kClassHasFinalizer | CLASS_REFERENCE | kClassFinalizerreferenceSentinel);
   flag = isAnonymous ? (flag | kClassIsanonymousclass) : flag;
-  mirBuilder.AddIntFieldConst(classMetadataType, newconst, fieldID++, flag);
+  mirBuilder.AddIntFieldConst(*classMetadataType, *newconst, fieldID++, flag);
   // @numofsuperclasses
   CHECK_FATAL(superClassSize <= 0xffff, "Error:the size of superClass is too big");
-  mirBuilder.AddIntFieldConst(classMetadataType, newconst, fieldID++, superClassSize);
+  mirBuilder.AddIntFieldConst(*classMetadataType, *newconst, fieldID++, superClassSize);
 #endif  // USE_32BIT_REF
   // @itab
   GStrIdx strIdx = GlobalTables::GetStrTable().GetStrIdxFromName(ITAB_PREFIX_STR + klass->GetKlassName());
   if (strIdx != 0) {
     MIRSymbol *itableSymbolType = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(strIdx);
-    mirBuilder.AddAddrofFieldConst(classMetadataType, newconst, fieldID++, itableSymbolType);
+    mirBuilder.AddAddrofFieldConst(*classMetadataType, *newconst, fieldID++, *itableSymbolType);
   } else {
-    mirBuilder.AddIntFieldConst(classMetadataType, newconst, fieldID++, 0);
+    mirBuilder.AddIntFieldConst(*classMetadataType, *newconst, fieldID++, 0);
   }
   // @vtab
   strIdx = GlobalTables::GetStrTable().GetStrIdxFromName(VTAB_PREFIX_STR + klass->GetKlassName());
   if (strIdx != 0) {
     MIRSymbol *vtableSymbolType = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(strIdx);
-    mirBuilder.AddAddrofFieldConst(classMetadataType, newconst, fieldID++, vtableSymbolType);
+    mirBuilder.AddAddrofFieldConst(*classMetadataType, *newconst, fieldID++, *vtableSymbolType);
   } else {
-    mirBuilder.AddIntFieldConst(classMetadataType, newconst, fieldID++, 0);
+    mirBuilder.AddIntFieldConst(*classMetadataType, *newconst, fieldID++, 0);
   }
   // @gctib
   MIRSymbol *gctibSt = GetOrCreateSymbol(GCTIB_PREFIX_STR + klass->GetKlassName(),
@@ -1330,9 +1293,9 @@ void ReflectionAnalysis::GenClassMetaData(Klass *klass) {
     // Direct access to gctib is only possible within a .so, for most classes.
     gctibSt->SetStorageClass(kScFstatic);
   }
-  mirBuilder.AddAddrofFieldConst(classMetadataType, newconst, fieldID++, gctibSt);
+  mirBuilder.AddAddrofFieldConst(*classMetadataType, *newconst, fieldID++, *gctibSt);
   // @classinfo ro.
-  mirBuilder.AddAddrofFieldConst(classMetadataType, newconst, fieldID++, classMetadataROSymbolType);
+  mirBuilder.AddAddrofFieldConst(*classMetadataType, *newconst, fieldID++, *classMetadataROSymbolType);
   // Set default value to class initialization state.
   // If this class and its parents do not have clinit, we do not clinit-check for this class.
   if (klassh->NeedClinitCheckRecursively(klass)) {
@@ -1340,12 +1303,12 @@ void ReflectionAnalysis::GenClassMetaData(Klass *klass) {
     MIRSymbol *classInitProtectRegion = mirBuilder.GetOrCreateSymbol(
         ptrType->GetTypeIndex(), kClassInitProtectRegionStr, kStVar, kScExtern, nullptr, kScopeGlobal, true);
     classInitProtectRegion->SetAttr(ATTR_extern);
-    mirBuilder.AddAddrofFieldConst(classMetadataType, newconst, fieldID++, classInitProtectRegion);
+    mirBuilder.AddAddrofFieldConst(*classMetadataType, *newconst, fieldID++, *classInitProtectRegion);
   } else {
     MIRType *clinitState = GlobalTables::GetTypeTable().GetUInt64();
     // The class initialization state is modified to classStateInitialized.
     MIRSymbol *classInfo = mirBuilder.GetOrCreateGlobalDecl(kClassStateInitializedStr, clinitState);
-    mirBuilder.AddAddrofFieldConst(classMetadataType, newconst, fieldID++, classInfo);
+    mirBuilder.AddAddrofFieldConst(*classMetadataType, *newconst, fieldID++, *classInfo);
   }
   // Finally generate class metadata here.
   MIRSymbol *classSt = GetOrCreateSymbol(CLASSINFO_PREFIX_STR + klass->GetKlassName(), classMetadataTyIdx, true);
@@ -1353,13 +1316,13 @@ void ReflectionAnalysis::GenClassMetaData(Klass *klass) {
   classTab.push_back(classSt);
 }
 
-void ReflectionAnalysis::SetAnnoFieldConst(const MIRStructType *metadataRoType, MIRAggConst *newconst, uint32 fieldid,
+void ReflectionAnalysis::SetAnnoFieldConst(const MIRStructType *metadataRoType, MIRAggConst &newconst, uint32 fieldid,
                                            std::map<int, int> &idxNumMap, const std::string &annoArr) {
   size_t annoNum = idxNumMap.size();
   if (annoNum == 0) {
     std::string subStr = "0!0";
     uint32 signatureIdx = FindOrInsertReflectString(subStr);
-    mirBuilder.AddIntFieldConst(metadataRoType, newconst, fieldid, signatureIdx);
+    mirBuilder.AddIntFieldConst(*metadataRoType, newconst, fieldid, signatureIdx);
   } else {
     std::string subStr = std::to_string(annoNum);
     subStr += "!";
@@ -1369,7 +1332,7 @@ void ReflectionAnalysis::SetAnnoFieldConst(const MIRStructType *metadataRoType, 
     });
     subStr += annoArr;
     uint32 signatureIdx = GetDeflateStringIdx(subStr);
-    mirBuilder.AddIntFieldConst(metadataRoType, newconst, fieldid, signatureIdx);
+    mirBuilder.AddIntFieldConst(*metadataRoType, newconst, fieldid, signatureIdx);
   }
 }
 
@@ -1725,5 +1688,4 @@ AnalysisResult *DoReflectionAnalysis::Run(MIRModule *module, ModuleResultMgr *mr
   mempoolctrler.DeleteMemPool(memPool);
   return nullptr;
 }
-
 }  // namespace maple

@@ -24,7 +24,7 @@ void VersionSt::DumpDefStmt(const MIRModule *mod) {
   }
   switch (defType) {
     case kDassign:
-      defStmt.dassign->Dump(mod, 0);
+      defStmt.dassign->Dump(*mod, 0);
       return;
     case kPhi:
       defStmt.phi->Dump(mod);
@@ -76,5 +76,4 @@ void VersionStTable::Dump(MIRModule *mod) {
   }
   mod->GetOut() << "=======end version st table===========\n";
 }
-
 }  // namespace maple

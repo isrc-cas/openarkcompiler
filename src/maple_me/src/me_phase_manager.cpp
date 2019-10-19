@@ -36,7 +36,7 @@ void MeFuncPhaseManager::RunFuncPhase(MeFunction *func, MeFuncPhase *phase) {
   {
     // 1. check options.enable(phase.id())
     // 2. options.tracebeforePhase(phase.id()) dumpIR before
-    if (!MeOptions::quiet) {
+    if (!MeOption::quiet) {
       LogInfo::MapleLogger() << "---Run Phase [ " << phase->PhaseName() << " ]---\n";
     }
     // 3. tracetime(phase.id())
@@ -106,8 +106,13 @@ bool MeFuncPhaseManager::FuncFilter(const std::string &filter, const std::string
   return false;
 }
 
+void MeFuncPhaseManager::IPACleanUp(MeFunction *func) {
+  GetAnalysisResultManager()->InvalidAllResults();
+  mempoolctrler.DeleteMemPool(func->GetMemPool());
+}
+
 void MeFuncPhaseManager::Run(MIRFunction *mirfunc, uint64 rangenum, const std::string &meinput) {
-  if (!MeOptions::quiet)
+  if (!MeOption::quiet)
     LogInfo::MapleLogger() << ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> Optimizing Function  < " << mirfunc->GetName()
                            << " id=" << mirfunc->GetPuidxOrigin() << " >---\n";
   MemPool *funcMP = mempoolctrler.NewMemPool("maple_me per-function mempool");
@@ -119,18 +124,20 @@ void MeFuncPhaseManager::Run(MIRFunction *mirfunc, uint64 rangenum, const std::s
   g_func = &func;
 #endif
   func.Prepare(rangenum);
+  if (ipa) {
+    mirfunc->SetMeFunc(&func);
+  }
   std::string phaseName = "";
   MeFuncPhase *changeCFGPhase = nullptr;
   /* each function level phase */
-  bool dumpFunc = FuncFilter(MeOptions::dumpFunc, func.GetName());
+  bool dumpFunc = FuncFilter(MeOption::dumpFunc, func.GetName());
   size_t phaseIndex = 0;
   for (auto it = PhaseSequenceBegin(); it != PhaseSequenceEnd(); it++, ++phaseIndex) {
     PhaseID id = GetPhaseId(it);
     MeFuncPhase *p = static_cast<MeFuncPhase*>(GetPhase(id));
-    ASSERT(p, "null ptr check ");
     p->SetPreviousPhaseName(phaseName); /* prev phase name is for filename used in emission after phase */
     phaseName = p->PhaseName();         // new phase name
-    bool dumpPhase = MeOptions::DumpPhase(phaseName);
+    bool dumpPhase = MeOption::DumpPhase(phaseName);
     MPLTimer timer;
     timer.Start();
     RunFuncPhase(&func, p);
@@ -138,7 +145,7 @@ void MeFuncPhaseManager::Run(MIRFunction *mirfunc, uint64 rangenum, const std::s
       timer.Stop();
       phaseTimers[phaseIndex] += timer.ElapsedMicroseconds();
     }
-    if ((MeOptions::dumpAfter || dumpPhase) && dumpFunc) {
+    if ((MeOption::dumpAfter || dumpPhase) && dumpFunc) {
       LogInfo::MapleLogger() << ">>>>> Dump after " << phaseName << " <<<<<\n";
       if (phaseName != "emit") {
         func.Dump(false);
@@ -151,8 +158,13 @@ void MeFuncPhaseManager::Run(MIRFunction *mirfunc, uint64 rangenum, const std::s
       break;
     }
   }
-  GetAnalysisResultManager()->InvalidAllResults();
+  if (!ipa) {
+    GetAnalysisResultManager()->InvalidAllResults();
+  }
   if (changeCFGPhase != nullptr) {
+    if (ipa) {
+      CHECK_FATAL(false, "phases in ipa will not chang cfg.");
+    }
     // do all the phases start over
     MemPool *versMemPool = mempoolctrler.NewMemPool("second verst mempool");
     MeFunction function(&mirModule, mirfunc, funcMP, versMemPool, meinput);
@@ -161,15 +173,14 @@ void MeFuncPhaseManager::Run(MIRFunction *mirfunc, uint64 rangenum, const std::s
     for (auto it = PhaseSequenceBegin(); it != PhaseSequenceEnd(); it++) {
       PhaseID id = GetPhaseId(it);
       MeFuncPhase *p = static_cast<MeFuncPhase*>(GetPhase(id));
-      ASSERT(p, "null ptr check ");
       if (p == changeCFGPhase) {
         continue;
       }
       p->SetPreviousPhaseName(phaseName); /* prev phase name is for filename used in emission after phase */
       phaseName = p->PhaseName();         // new phase name
-      bool dumpPhase = MeOptions::DumpPhase(phaseName);
+      bool dumpPhase = MeOption::DumpPhase(phaseName);
       RunFuncPhase(&function, p);
-      if ((MeOptions::dumpAfter || dumpPhase) && dumpFunc) {
+      if ((MeOption::dumpAfter || dumpPhase) && dumpFunc) {
         LogInfo::MapleLogger() << ">>>>>Second time Dump after " << phaseName << " <<<<<\n";
         if (phaseName != "emit") {
           function.Dump(false);
@@ -179,7 +190,8 @@ void MeFuncPhaseManager::Run(MIRFunction *mirfunc, uint64 rangenum, const std::s
     }
     GetAnalysisResultManager()->InvalidAllResults();
   }
-  mempoolctrler.DeleteMemPool(funcMP);
+  if (!ipa) {
+    mempoolctrler.DeleteMemPool(funcMP);
+  }
 }
-
 }  // namespace maple

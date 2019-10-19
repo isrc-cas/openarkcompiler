@@ -67,6 +67,7 @@ class MIRDoubleConst;
 class MIRBuilder;
 class DebugInfo;
 class BinaryMplt;
+class EAConnectionGraph;
 using MIRInfoPair = std::pair<GStrIdx, uint32>;
 using MIRInfoVector = MapleVector<MIRInfoPair>;
 using MIRDataPair = std::pair<GStrIdx, std::vector<uint8>>;
@@ -77,10 +78,6 @@ struct EncodedValue {
 };
 
 class MIRTypeNameTable {
- private:
-  MapleAllocator *mAllocator;
-  MapleMap<GStrIdx, TyIdx> gStrIdxToTyIdxMap;
-
  public:
   explicit MIRTypeNameTable(MapleAllocator *allocator)
       : mAllocator(allocator), gStrIdxToTyIdxMap(std::less<GStrIdx>(), mAllocator->Adapter()) {}
@@ -106,6 +103,10 @@ class MIRTypeNameTable {
   size_t Size() const {
     return gStrIdxToTyIdxMap.size();
   }
+ private:
+  MapleAllocator *mAllocator;
+  MapleMap<GStrIdx, TyIdx> gStrIdxToTyIdxMap;
+
 };
 
 class MIRModule {
@@ -198,6 +199,7 @@ class MIRModule {
   MIRFunction *CurFunction(void) const;
   MemPool *CurFuncCodeMemPool(void) const;
   MapleAllocator *CurFuncCodeMemPoolAllocator(void) const;
+  MapleAllocator &GetCurFuncCodeMPAllocator(void) const;
   void AddExternStructType(TyIdx tyIdx);
   void AddExternStructType(const MIRType *t);
   void AddSymbol(StIdx stIdx);
@@ -275,10 +277,6 @@ class MIRModule {
     return optimizedFuncs.push_back(func);
   }
 
-  MapleSet<uint32> &GetRcNoNeedingLock() {
-    return rcNotNeedingLock;
-  }
-
   MapleMap<PUIdx, MapleSet<FieldID>*> &GetPuIdxFieldInitializedMap() {
     return puIdxFieldInitializedMap;
   }
@@ -329,6 +327,14 @@ class MIRModule {
 
   void SetBinMplt(BinaryMplt *binaryMplt) {
     binMplt = binaryMplt;
+  }
+
+  bool IsInIPA() {
+    return inIPA;
+  }
+
+  void SetInIPA(bool isInIPA) {
+    inIPA = isInIPA;
   }
 
   MIRInfoVector &GetFileInfo() {
@@ -451,6 +457,10 @@ class MIRModule {
     method2TargetHash[idx] = value;
   }
 
+  std::map<GStrIdx, EAConnectionGraph*> &GetEASummary() {
+    return EASummary;
+  }
+
  private:
   MemPool *memPool;
   MapleAllocator memPoolAllocator;
@@ -474,6 +484,7 @@ class MIRModule {
   bool withProfileInfo;
   // for cg in mplt
   BinaryMplt *binMplt;
+  bool inIPA;
   MIRInfoVector fileInfo;              // store info provided under fileInfo keyword
   MapleVector<bool> fileInfoIsString;  // tells if an entry has string value
   MIRDataVector fileData;
@@ -500,6 +511,7 @@ class MIRModule {
 
   std::map<PUIdx, std::vector<CallSite>> method2TargetMap;
   std::map<PUIdx, std::unordered_set<uint64>> method2TargetHash;
+  std::map<GStrIdx, EAConnectionGraph*> EASummary;
 
   MIRFunction *entryFunc;
   uint32 floatNum;
@@ -507,7 +519,6 @@ class MIRModule {
   MapleVector<MIRFunction*> optimizedFuncs;
   // Add the field for decouple optimization
   std::unordered_set<std::string> superCallSet;
-  MapleSet<uint32> rcNotNeedingLock;  // set of stmtID's which does incref/decref to an object not escaping
   // record all the fields that are initialized in the constructor. module scope,
   // if puIdx doesn't appear in this map, it writes to all field id
   // if puIdx appears in the map, but it's corresponding MapleSet is nullptr, it writes nothing fieldID

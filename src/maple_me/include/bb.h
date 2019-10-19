@@ -47,7 +47,8 @@ enum BBAttr {
   kBBIsCatch,        // bb is start of catch handler
   kBBIsJavaFinally,  // bb is start of finally handler
   kBBArtificial,     // bb is inserted by maple_me
-  kBBIsInLoop        // Is bb in a loop body
+  kBBIsInLoop,       // Is bb in a loop body
+  kBBIsInLoopForEA   // For EA use
 };
 
 struct BBId {
@@ -103,6 +104,7 @@ constexpr uint32 kBBAttrIsCatch = (1U << kBBIsCatch);
 constexpr uint32 kBBAttrIsJavaFinally = (1U << kBBIsJavaFinally);
 constexpr uint32 kBBAttrArtificial = (1U << kBBArtificial);
 constexpr uint32 kBBAttrIsInLoop = (1U << kBBIsInLoop);
+constexpr uint32 kBBAttrIsInLoopForEA = (1 << kBBIsInLoopForEA);
 constexpr uint32 kBBVectorInitialSize = 2;
 using StmtNodes = PtrListRef<StmtNode>;
 using MeStmts = PtrListRef<MeStmt>;
@@ -211,6 +213,14 @@ class BB {
     stmtNodeList.update_back(stmt);
   }
 
+  StmtNode *GetFirst() {
+    return &stmtNodeList.front();
+  }
+
+  StmtNode *GetLast() {
+    return &stmtNodeList.back();
+  }
+
   void SetFirstMe(MeStmt *stmt);
   void SetLastMe(MeStmt *stmt);
   bool IsInList(MapleVector<BB*> &) const;
@@ -253,7 +263,7 @@ class BB {
 
   void FindReachableBBs(std::vector<bool> &);
   void FindWillExitBBs(std::vector<bool> &);
-  PhiNode *PhiofVerStInserted(VersionSt *vsym);
+  const PhiNode *PhiofVerStInserted(VersionSt *vsym);
   void InsertPhi(MapleAllocator *alloc, VersionSt *vsym);
   void DumpPhi(const MIRModule*);
   bool IsMeStmtEmpty() const {
@@ -385,11 +395,9 @@ class BB {
   StmtNodes stmtNodeList;
   MeStmts meStmtList;
 };
-
 }  // namespace maple
 
 namespace std {
-
 template <>
 struct hash<maple::BBId> {
   size_t operator()(const maple::BBId &x) const {
@@ -403,7 +411,6 @@ struct hash<maple::OStIdx> {
     return x.idx;
   }
 };
-
 }  // namespace std
 
 #endif  // MAPLE_ME_INCLUDE_BB_H
