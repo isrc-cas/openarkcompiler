@@ -20,7 +20,6 @@
 #include "mir_function.h"
 
 namespace maple {
-
 constexpr int32_t kDefaultPrintIndentNum = 5;
 
 bool MeExpr::IsTheSameWorkcand(const MeExpr &expr) const {
@@ -66,7 +65,7 @@ void MeExpr::UpdateDepth() {
     }
   }
   ASSERT(maxDepth < UINT8_MAX, "runtime check error");
-  depth = (uint8)maxDepth + 1;
+  depth = static_cast<uint8>(maxDepth + 1);
 }
 
 // get the definition of this
@@ -78,6 +77,7 @@ MeExpr *MeExpr::ResolveMeExprValue() {
   MeExpr *cmpOpLocal = this;
   while (cmpOpLocal != nullptr && cmpOpLocal->GetMeOp() == kMeOpVar) {
     auto *varCmpOp = static_cast<VarMeExpr*>(cmpOpLocal);
+    cmpOpLocal = nullptr;
     if (varCmpOp->GetDefBy() == kDefByStmt) {
       cmpOpLocal = static_cast<DassignMeStmt*>(varCmpOp->GetDefStmt())->GetRHS();
     } else if (varCmpOp->GetDefBy() == kDefByChi) {
@@ -85,11 +85,7 @@ MeExpr *MeExpr::ResolveMeExprValue() {
       MeStmt *base = defchi.GetBase();
       if (base->GetOp() == OP_maydassign) {
         cmpOpLocal = static_cast<MaydassignMeStmt*>(base)->GetRHS();
-      } else {
-        cmpOpLocal = nullptr;
       }
-    } else {
-      cmpOpLocal = nullptr;
     }
   }
   return cmpOpLocal;
@@ -251,78 +247,66 @@ MeExpr &MeExpr::GetAddrExprBase() {
 }
 
 bool NaryMeExpr::IsUseSameSymbol(const MeExpr &expr) const {
-  auto *naryMeExpr = dynamic_cast<const NaryMeExpr *>(&expr);
-  if (naryMeExpr == nullptr) {
+  if (expr.GetMeOp() != kMeOpNary) {
     return false;
   }
-  if (expr.GetOp() != GetOp() || naryMeExpr->GetIntrinsic() != intrinsic || naryMeExpr->tyIdx != tyIdx) {
+  auto &naryMeExpr = static_cast<const NaryMeExpr&>(expr);
+  if (expr.GetOp() != GetOp() || naryMeExpr.GetIntrinsic() != intrinsic || naryMeExpr.tyIdx != tyIdx) {
     return false;
   }
-  if (opnds.size() != naryMeExpr->GetOpnds().size()) {
+  if (opnds.size() != naryMeExpr.GetOpnds().size()) {
     return false;
   }
   for (size_t i = 0; i < opnds.size(); i++) {
-    if (!opnds[i]->IsUseSameSymbol(*naryMeExpr->GetOpnd(i))) {
+    if (!opnds[i]->IsUseSameSymbol(*naryMeExpr.GetOpnd(i))) {
       return false;
     }
   }
   return true;
 }
 
-bool OpMeExpr::IsIdentical(const OpMeExpr &meexpr) {
-  if (meexpr.GetOp() != GetOp()) {
-    return false;
-  }
-  if (meexpr.GetPrimType() != GetPrimType() || meexpr.opndType != opndType || meexpr.bitsOffset != bitsOffset ||
-      meexpr.bitsSize != bitsSize || meexpr.tyIdx != tyIdx || meexpr.fieldID != fieldID) {
-    return false;
-  }
-  CHECK_FATAL(meexpr.opnds[0], "at least opnds[0] shouldn't be empty");
-  CHECK_FATAL(opnds[0], "at least opnds[0] shouldn't be empty");
-  if (meexpr.opnds[0]->GetExprID() != opnds[0]->GetExprID()) {
-    return false;
-  }
-  if ((meexpr.opnds[1] && !opnds[1]) || (!meexpr.opnds[1] && opnds[1])) {
-    return false;
-  }
-  if ((meexpr.opnds[1] && opnds[1] && meexpr.opnds[1]->GetExprID() != opnds[1]->GetExprID())) {
-    return false;
-  }
-  if ((meexpr.opnds[2] && !opnds[2]) || (!meexpr.opnds[2] && opnds[2])) {
-    return false;
-  }
-  if ((meexpr.opnds[2] && opnds[2] && meexpr.opnds[2]->GetExprID() != opnds[2]->GetExprID())) {
-    return false;
-  }
-  return true;
-}
-
-bool NaryMeExpr::IsIdentical(NaryMeExpr &meexpr) const {
-  if (meexpr.GetOp() != GetOp() || meexpr.tyIdx != tyIdx || meexpr.GetIntrinsic() != intrinsic ||
-      meexpr.boundCheck != boundCheck) {
-    return false;
-  }
-  if (meexpr.GetNumOpnds() != GetNumOpnds()) {
-    return false;
-  }
+bool MeExpr::IsAllOpndsIdentical(const MeExpr &meExpr) const {
   for (uint8 i = 0; i < GetNumOpnds(); i++) {
-    if (opnds[i]->GetExprID() != meexpr.GetOpnd(i)->GetExprID()) {
-      // expression comparison
+    if (GetOpnd(i)->GetExprID() != meExpr.GetOpnd(i)->GetExprID()) {
       return false;
     }
   }
   return true;
+}
+
+bool OpMeExpr::IsIdentical(const OpMeExpr &meExpr) const {
+  if (meExpr.GetOp() != GetOp()) {
+    return false;
+  }
+  if (meExpr.GetPrimType() != GetPrimType() || meExpr.opndType != opndType || meExpr.bitsOffset != bitsOffset ||
+      meExpr.bitsSize != bitsSize || meExpr.tyIdx != tyIdx || meExpr.fieldID != fieldID) {
+    return false;
+  }
+
+  return IsAllOpndsIdentical(meExpr);
+}
+
+bool NaryMeExpr::IsIdentical(NaryMeExpr &meExpr) const {
+  if (meExpr.GetOp() != GetOp() || meExpr.tyIdx != tyIdx || meExpr.GetIntrinsic() != intrinsic ||
+      meExpr.boundCheck != boundCheck) {
+    return false;
+  }
+  if (meExpr.GetNumOpnds() != GetNumOpnds()) {
+    return false;
+  }
+
+  return IsAllOpndsIdentical(meExpr);
 }
 
 bool IvarMeExpr::IsUseSameSymbol(const MeExpr &expr) const {
   if (expr.GetExprID() == GetExprID()) {
     return true;
   }
-  auto *ivarMeExpr = dynamic_cast<const IvarMeExpr*>(&expr);
-  if (ivarMeExpr == nullptr) {
+  if (expr.GetMeOp() != kMeOpIvar) {
     return false;
   }
-  if (base->IsUseSameSymbol(*ivarMeExpr->base) && fieldID == ivarMeExpr->fieldID) {
+  auto &ivarMeExpr = static_cast<const IvarMeExpr&>(expr);
+  if (base->IsUseSameSymbol(*ivarMeExpr.base) && fieldID == ivarMeExpr.fieldID) {
     return true;
   }
   return false;
@@ -381,15 +365,15 @@ BB *VarMeExpr::GetDefByBBMeStmt(Dominance &dominance, MeStmtPtr &defMeStmt) {
 }
 
 bool VarMeExpr::IsUseSameSymbol(const MeExpr &expr) const {
-  auto *varMeExpr = dynamic_cast<const VarMeExpr *>(&expr);
-  if (varMeExpr == nullptr) {
+  if (expr.GetMeOp() != kMeOpVar) {
     return false;
   }
-  return ostIdx == varMeExpr->ostIdx;
+  auto &varMeExpr = static_cast<const VarMeExpr&>(expr);
+  return ostIdx == varMeExpr.ostIdx;
 }
 
 bool VarMeExpr::IsPureLocal(SSATab &tab, const MIRFunction &irFunc) const {
-  MIRSymbol *st = tab.GetMIRSymbolFromID(ostIdx);
+  const MIRSymbol *st = tab.GetMIRSymbolFromID(ostIdx);
   return st->IsLocal() && !irFunc.IsAFormal(st);
 }
 
@@ -400,11 +384,11 @@ bool VarMeExpr::IsZeroVersion(SSATab &ssatab) const {
 }
 
 bool RegMeExpr::IsUseSameSymbol(const MeExpr &expr) const {
-  auto *regMeExpr = dynamic_cast<const RegMeExpr *>(&expr);
-  if (regMeExpr == nullptr) {
+  if (expr.GetMeOp() != kMeOpReg) {
     return false;
   }
-  return ostIdx == regMeExpr->ostIdx;
+  auto &regMeExpr = static_cast<const RegMeExpr&>(expr);
+  return ostIdx == regMeExpr.ostIdx;
 }
 
 BB *RegMeExpr::DefByBB() {
@@ -428,31 +412,31 @@ BB *RegMeExpr::DefByBB() {
 }
 
 bool AddrofMeExpr::IsUseSameSymbol(const MeExpr &expr) const {
-  auto *varMeExpr = dynamic_cast<const AddrofMeExpr *>(&expr);
-  if (varMeExpr == nullptr) {
+  if (expr.GetMeOp() != kMeOpAddrof) {
     return false;
   }
-  return ostIdx == varMeExpr->ostIdx;
+  const auto &varMeExpr = static_cast<const AddrofMeExpr&>(expr);
+  return ostIdx == varMeExpr.ostIdx;
 }
 
 bool OpMeExpr::IsUseSameSymbol(const MeExpr &expr) const {
   if (expr.GetOp() != GetOp()) {
     return false;
   }
-  auto *opmeexpr = dynamic_cast<const OpMeExpr *>(&expr);
-  if (opmeexpr == nullptr) {
+  if (expr.GetMeOp() != kMeOpOp) {
     return false;
   }
-  for (uint32 i = 0; i < kOpndNumOfOpMeExpr; i++) {
+  auto &opMeExpr = static_cast<const OpMeExpr&>(expr);
+  for (uint32 i = 0; i < kOprandNumTernary; i++) {
     if (opnds[i]) {
-      if (!opmeexpr->opnds[i]) {
+      if (!opMeExpr.opnds[i]) {
         return false;
       }
-      if (!opnds[i]->IsUseSameSymbol(*opmeexpr->opnds[i])) {
+      if (!opnds[i]->IsUseSameSymbol(*opMeExpr.opnds[i])) {
         return false;
       }
     } else {
-      if (opmeexpr->opnds[i]) {
+      if (opMeExpr.opnds[i]) {
         return false;
       }
     }
@@ -490,7 +474,7 @@ int64 ConstMeExpr::GetIntValue() const {
 
 void MeVarPhiNode::Dump(IRMap *irMap) const {
   LogInfo::MapleLogger() << "VAR:";
-  irMap->GetSSATab()->GetOriginalStFromID(lhs->GetOStIdx())->Dump();
+  irMap->GetSSATab().GetOriginalStFromID(lhs->GetOStIdx())->Dump();
   LogInfo::MapleLogger() << " mx" << lhs->GetExprID();
   LogInfo::MapleLogger() << " = MEPHI{";
   for (size_t i = 0; i < opnds.size(); i++) {
@@ -503,13 +487,13 @@ void MeVarPhiNode::Dump(IRMap *irMap) const {
   if (!isLive) {
     LogInfo::MapleLogger() << " dead";
   }
-  LogInfo::MapleLogger() << std::endl;
+  LogInfo::MapleLogger() << '\n';
 }
 
 void MeRegPhiNode::Dump(IRMap *irMap) const {
   LogInfo::MapleLogger() << "REGVAR: " << lhs->GetRegIdx();
   LogInfo::MapleLogger() << "(%"
-                         << irMap->GetMIRModule()->CurFunction()
+                         << irMap->GetMIRModule().CurFunction()
                                                  ->GetPregTab()
                                                  ->PregFromPregIdx(static_cast<PregIdx>(lhs->GetRegIdx()))
                                                  ->GetPregNo()
@@ -522,15 +506,15 @@ void MeRegPhiNode::Dump(IRMap *irMap) const {
       LogInfo::MapleLogger() << ",";
     }
   }
-  LogInfo::MapleLogger() << "}" << std::endl;
+  LogInfo::MapleLogger() << "}" << '\n';
 }
 
 void VarMeExpr::Dump(IRMap *irMap, int32 indent) const {
   LogInfo::MapleLogger() << "VAR ";
-  irMap->GetSSATab()->GetOriginalStFromID(ostIdx)->Dump();
+  irMap->GetSSATab().GetOriginalStFromID(ostIdx)->Dump();
   LogInfo::MapleLogger() << " (field)" << fieldID;
   LogInfo::MapleLogger() << " mx" << GetExprID();
-  if (IsZeroVersion(*irMap->GetSSATab())) {
+  if (IsZeroVersion(irMap->GetSSATab())) {
     LogInfo::MapleLogger() << "<Z>";
   }
 }
@@ -539,7 +523,7 @@ void RegMeExpr::Dump(IRMap *irMap, int32 indent) const {
   LogInfo::MapleLogger() << "REGINDX:" << regIdx;
   LogInfo::MapleLogger()
       << " %"
-      << irMap->GetMIRModule()->CurFunction()->GetPregTab()->PregFromPregIdx(static_cast<PregIdx>(regIdx))->GetPregNo();
+      << irMap->GetMIRModule().CurFunction()->GetPregTab()->PregFromPregIdx(static_cast<PregIdx>(regIdx))->GetPregNo();
   LogInfo::MapleLogger() << " mx" << GetExprID();
 }
 
@@ -598,7 +582,7 @@ void FieldsDistMeExpr::Dump(IRMap *irMap, int32 indent) const {
 
 void AddrofMeExpr::Dump(IRMap *irMap, int32 indent) const {
   LogInfo::MapleLogger() << "ADDROF:";
-  irMap->GetSSATab()->GetOriginalStFromID(ostIdx)->Dump();
+  irMap->GetSSATab().GetOriginalStFromID(ostIdx)->Dump();
   LogInfo::MapleLogger() << " (field)" << fieldID;
   LogInfo::MapleLogger() << " mx" << GetExprID();
 }
@@ -606,13 +590,13 @@ void AddrofMeExpr::Dump(IRMap *irMap, int32 indent) const {
 void OpMeExpr::Dump(IRMap *irMap, int32 indent) const {
   LogInfo::MapleLogger() << "OP " << kOpcodeInfo.GetTableItemAt(GetOp()).name;
   LogInfo::MapleLogger() << " mx" << GetExprID();
-  LogInfo::MapleLogger() << std::endl;
+  LogInfo::MapleLogger() << '\n';
   ASSERT(opnds[0] != nullptr, "OpMeExpr::Dump: cannot have 0 operand");
   PrintIndentation(indent + 1);
   LogInfo::MapleLogger() << "opnd[0] = ";
   opnds[0]->Dump(irMap, indent + 1);
   if (opnds[1]) {
-    LogInfo::MapleLogger() << std::endl;
+    LogInfo::MapleLogger() << '\n';
   } else {
     return;
   }
@@ -620,7 +604,7 @@ void OpMeExpr::Dump(IRMap *irMap, int32 indent) const {
   LogInfo::MapleLogger() << "opnd[1] = ";
   opnds[1]->Dump(irMap, indent + 1);
   if (opnds[2]) {
-    LogInfo::MapleLogger() << std::endl;
+    LogInfo::MapleLogger() << '\n';
   } else {
     return;
   }
@@ -635,11 +619,11 @@ void IvarMeExpr::Dump(IRMap *irMap, int32 indent) const {
   LogInfo::MapleLogger() << " TYIDX:" << tyIdx.GetIdx();
   MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
   mirType->Dump(0);
-  LogInfo::MapleLogger() << " (field)" << fieldID << std::endl;
+  LogInfo::MapleLogger() << " (field)" << fieldID << '\n';
   PrintIndentation(indent + 1);
   LogInfo::MapleLogger() << "base = ";
   base->Dump(irMap, indent + 1);
-  LogInfo::MapleLogger() << std::endl;
+  LogInfo::MapleLogger() << '\n';
   PrintIndentation(indent + 1);
   LogInfo::MapleLogger() << "- MU: {";
   if (mu != nullptr) {
@@ -658,20 +642,19 @@ void NaryMeExpr::Dump(IRMap *irMap, int32 indent) const {
     ASSERT(GetOp() == OP_intrinsicopwithtype, "NaryMeExpr has bad GetOp()code");
     LogInfo::MapleLogger() << "INTRINOPWTY[" << intrinsic << "]";
   }
-  LogInfo::MapleLogger() << " mx" << GetExprID() << std::endl;
+  LogInfo::MapleLogger() << " mx" << GetExprID() << '\n';
   for (int32 i = 0; i < GetNumOpnds(); i++) {
     PrintIndentation(indent + 1);
     LogInfo::MapleLogger() << "opnd[" << i << "] = ";
     opnds[i]->Dump(irMap, indent + 1);
     if (i != GetNumOpnds() - 1) {
-      LogInfo::MapleLogger() << std::endl;
+      LogInfo::MapleLogger() << '\n';
     }
   }
 }
 
 MeExpr *DassignMeStmt::GetLHSRef(SSATab &ssatab, bool excludelocalrefvar) {
   VarMeExpr *l = GetVarLHS();
-  ASSERT(l != nullptr, "null ptr check");
   if (l->GetPrimType() != PTY_ref) {
     return nullptr;
   }
@@ -687,7 +670,6 @@ MeExpr *DassignMeStmt::GetLHSRef(SSATab &ssatab, bool excludelocalrefvar) {
 
 MeExpr *MaydassignMeStmt::GetLHSRef(SSATab &ssatab, bool excludelocalrefvar) {
   VarMeExpr *l = GetVarLHS();
-  ASSERT(l != nullptr, "null ptr check");
   if (l->GetPrimType() != PTY_ref) {
     return nullptr;
   }
@@ -707,7 +689,7 @@ MeExpr *IassignMeStmt::GetLHSRef(SSATab &ssatab, bool excludelocalrefvar) {
   MIRType *ptype = static_cast<MIRPtrType*>(baseType)->GetPointedType();
   MIRStructType *structType = dynamic_cast<MIRStructType*>(ptype);
   if (structType == nullptr) {
-    if (dynamic_cast<MIRPtrType*>(ptype)) {
+    if (ptype->GetKind() == kTypePointer) {
       if (lhsVar->GetFieldID() == 0) {
         if (static_cast<MIRPtrType*>(ptype)->GetPrimType() != PTY_ref) {
           return nullptr;
@@ -743,10 +725,10 @@ VarMeExpr *AssignedPart::GetAssignedPartLHSRef(SSATab &ssatab, bool excludelocal
     return nullptr;
   }
   MeExpr *assignedLHS = mustDefList.front().GetLHS();
-  auto *theLHS = dynamic_cast<VarMeExpr*>(assignedLHS);
-  if (theLHS == nullptr) {
+  if (assignedLHS->GetMeOp() != kMeOpVar) {
     return nullptr;
   }
+  auto *theLHS = static_cast<VarMeExpr*>(assignedLHS);
   if (theLHS->GetPrimType() != PTY_ref) {
     return nullptr;
   }
@@ -765,7 +747,7 @@ void MeStmt::Dump(IRMap *irMap) const {
   if (op == OP_comment) {
     return;
   }
-  irMap->GetMIRModule()->GetOut() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(op).name << std::endl;
+  irMap->GetMIRModule().GetOut() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(op).name << '\n';
 }
 
 // get the real next mestmt that is not a comment
@@ -780,7 +762,7 @@ MeStmt *MeStmt::GetNextMeStmt() {
 void DassignMeStmt::Dump(IRMap *irMap) const {
   LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << " ";
   lhs->Dump(irMap);
-  LogInfo::MapleLogger() << std::endl;
+  LogInfo::MapleLogger() << '\n';
   PrintIndentation(kDefaultPrintIndentNum);
   LogInfo::MapleLogger() << "rhs = ";
   rhs->Dump(irMap, kDefaultPrintIndentNum);
@@ -790,25 +772,25 @@ void DassignMeStmt::Dump(IRMap *irMap) const {
   if (needDecref) {
     LogInfo::MapleLogger() << " [RC-]";
   }
-  LogInfo::MapleLogger() << std::endl;
+  LogInfo::MapleLogger() << '\n';
   DumpChiList(irMap, chiList);
 }
 
 void RegassignMeStmt::Dump(IRMap *irMap) const {
   LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << " ";
   lhs->Dump(irMap);
-  LogInfo::MapleLogger() << std::endl;
+  LogInfo::MapleLogger() << '\n';
   PrintIndentation(kDefaultPrintIndentNum);
   LogInfo::MapleLogger() << "rhs = ";
   rhs->Dump(irMap, kDefaultPrintIndentNum);
   if (needIncref) {
     LogInfo::MapleLogger() << " [RC+]";
   }
-  LogInfo::MapleLogger() << std::endl;
+  LogInfo::MapleLogger() << '\n';
 }
 
 void MaydassignMeStmt::Dump(IRMap *irMap) const {
-  LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << std::endl;
+  LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << '\n';
   PrintIndentation(kDefaultPrintIndentNum);
   LogInfo::MapleLogger() << "rhs = ";
   rhs->Dump(irMap, kDefaultPrintIndentNum);
@@ -818,7 +800,7 @@ void MaydassignMeStmt::Dump(IRMap *irMap) const {
   if (needDecref) {
     LogInfo::MapleLogger() << " [RC-]";
   }
-  LogInfo::MapleLogger() << std::endl;
+  LogInfo::MapleLogger() << '\n';
   DumpChiList(irMap, chiList);
 }
 
@@ -829,26 +811,26 @@ void ChiMeNode::Dump(IRMap *irMap) const {
   CHECK_FATAL(merhs != nullptr, "Node doesn't have rhs?");
   if (!DumpOptions::GetSimpleDump()) {
     LogInfo::MapleLogger() << "VAR:";
-    irMap->GetSSATab()->GetOriginalStFromID(melhs->GetOStIdx())->Dump();
+    irMap->GetSSATab().GetOriginalStFromID(melhs->GetOStIdx())->Dump();
   }
   LogInfo::MapleLogger() << " mx" << melhs->GetExprID() << " = CHI{";
   LogInfo::MapleLogger() << "mx" << merhs->GetExprID() << "}";
 }
 
-void DumpMuList(IRMap *irMap, const MapleMap<OStIdx, VarMeExpr*> &mulist, int32 indent) {
-  if (mulist.empty()) {
+void DumpMuList(IRMap *irMap, const MapleMap<OStIdx, VarMeExpr*> &muList, int32 indent) {
+  if (muList.empty()) {
     return;
   }
   int count = 0;
   LogInfo::MapleLogger() << "---- MULIST: { ";
-  for (auto it = mulist.begin();;) {
+  for (auto it = muList.begin();;) {
     if (!DumpOptions::GetSimpleDump()) {
       (*it).second->Dump(irMap);
     } else {
       LogInfo::MapleLogger() << "mx" << (*it).second->GetExprID();
     }
     it++;
-    if (it == mulist.end()) {
+    if (it == muList.end()) {
       break;
     } else {
       LogInfo::MapleLogger() << ", ";
@@ -861,16 +843,16 @@ void DumpMuList(IRMap *irMap, const MapleMap<OStIdx, VarMeExpr*> &mulist, int32 
   LogInfo::MapleLogger() << " }\n";
 }
 
-void DumpChiList(IRMap *irMap, const MapleMap<OStIdx, ChiMeNode*> &chilist) {
-  if (chilist.empty()) {
+void DumpChiList(IRMap *irMap, const MapleMap<OStIdx, ChiMeNode*> &chiList) {
+  if (chiList.empty()) {
     return;
   }
   int count = 0;
   LogInfo::MapleLogger() << "---- CHILIST: { ";
-  for (auto it = chilist.begin();;) {
+  for (auto it = chiList.begin();;) {
     it->second->Dump(irMap);
     it++;
-    if (it == chilist.end()) {
+    if (it == chiList.end()) {
       break;
     } else {
       LogInfo::MapleLogger() << ", ";
@@ -884,11 +866,11 @@ void DumpChiList(IRMap *irMap, const MapleMap<OStIdx, ChiMeNode*> &chilist) {
 }
 
 void IassignMeStmt::Dump(IRMap *irMap) const {
-  LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << std::endl;
+  LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << '\n';
   PrintIndentation(kDefaultPrintIndentNum);
   LogInfo::MapleLogger() << "lhs = ";
   lhsVar->Dump(irMap, kDefaultPrintIndentNum);
-  LogInfo::MapleLogger() << std::endl;
+  LogInfo::MapleLogger() << '\n';
   PrintIndentation(kDefaultPrintIndentNum);
   LogInfo::MapleLogger() << "rhs = ";
   rhs->Dump(irMap, kDefaultPrintIndentNum);
@@ -898,7 +880,7 @@ void IassignMeStmt::Dump(IRMap *irMap) const {
   if (needDecref) {
     LogInfo::MapleLogger() << " [RC-]";
   }
-  LogInfo::MapleLogger() << std::endl;
+  LogInfo::MapleLogger() << '\n';
   DumpChiList(irMap, chiList);
 }
 
@@ -907,7 +889,7 @@ void NaryMeStmt::DumpOpnds(IRMap *irMap) const {
     PrintIndentation(kDefaultPrintIndentNum);
     LogInfo::MapleLogger() << "opnd[" << i << "] = ";
     opnds[i]->Dump(irMap, kDefaultPrintIndentNum);
-    LogInfo::MapleLogger() << std::endl;
+    LogInfo::MapleLogger() << '\n';
   }
 }
 
@@ -940,7 +922,7 @@ void CallMeStmt::Dump(IRMap *irMap) const {
   }
   // target function name
   MIRFunction *func = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(puIdx);
-  LogInfo::MapleLogger() << NameMangler::DecodeName(func->GetName()) << std::endl;
+  LogInfo::MapleLogger() << NameMangler::DecodeName(func->GetName()) << '\n';
   DumpOpnds(irMap);
   DumpMuList(irMap, muList, 0);
   DumpChiList(irMap, chiList);
@@ -963,7 +945,7 @@ void IntrinsiccallMeStmt::Dump(IRMap *irMap) const {
   if (mirType != nullptr) {
     mirType->Dump(0);
   }
-  LogInfo::MapleLogger() << GetIntrinsicName(intrinsic) << std::endl;
+  LogInfo::MapleLogger() << GetIntrinsicName(intrinsic) << '\n';
   DumpOpnds(irMap);
   DumpMuList(irMap, muList, 0);
   DumpChiList(irMap, chiList);
@@ -971,52 +953,52 @@ void IntrinsiccallMeStmt::Dump(IRMap *irMap) const {
 }
 
 void RetMeStmt::Dump(IRMap *irMap) const {
-  LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << std::endl;
+  LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << '\n';
   DumpOpnds(irMap);
   DumpMuList(irMap, muList, 1);
 }
 
 void CondGotoMeStmt::Dump(IRMap *irMap) const {
-  LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << std::endl;
+  LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << '\n';
   PrintIndentation(kDefaultPrintIndentNum);
   LogInfo::MapleLogger() << "cond: ";
   GetOpnd()->Dump(irMap, kDefaultPrintIndentNum);
-  LogInfo::MapleLogger() << std::endl;
+  LogInfo::MapleLogger() << '\n';
 }
 
 void UnaryMeStmt::Dump(IRMap *irMap) const {
-  LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << std::endl;
+  LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << '\n';
   PrintIndentation(kDefaultPrintIndentNum);
   LogInfo::MapleLogger() << " unaryopnd: ";
   opnd->Dump(irMap, kDefaultPrintIndentNum);
-  LogInfo::MapleLogger() << std::endl;
+  LogInfo::MapleLogger() << '\n';
 }
 
 void SwitchMeStmt::Dump(IRMap *irMap) const {
-  LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << std::endl;
+  LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << '\n';
   PrintIndentation(kDefaultPrintIndentNum);
   LogInfo::MapleLogger() << "switchOpnd: ";
   GetOpnd()->Dump(irMap, kDefaultPrintIndentNum);
-  LogInfo::MapleLogger() << std::endl;
+  LogInfo::MapleLogger() << '\n';
 }
 
 void GosubMeStmt::Dump(IRMap *irMap) const {
-  LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << std::endl;
+  LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << '\n';
   DumpMuList(irMap, *GetMuList(), 0);
-  LogInfo::MapleLogger() << std::endl;
+  LogInfo::MapleLogger() << '\n';
 }
 
 void ThrowMeStmt::Dump(IRMap *irMap) const {
-  LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << std::endl;
+  LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << '\n';
   PrintIndentation(kDefaultPrintIndentNum);
   LogInfo::MapleLogger() << "throwopnd: ";
   opnd->Dump(irMap, kDefaultPrintIndentNum);
-  LogInfo::MapleLogger() << std::endl;
+  LogInfo::MapleLogger() << '\n';
   DumpMuList(irMap, *GetMuList(), 0);
 }
 
 void SyncMeStmt::Dump(IRMap *irMap) const {
-  LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << std::endl;
+  LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << '\n';
   DumpOpnds(irMap);
   DumpMuList(irMap, muList, 0);
   DumpChiList(irMap, chiList);
@@ -1067,15 +1049,15 @@ bool MeStmt::IsTheSameWorkcand(MeStmt &mestmt) const {
 }
 
 void AssertMeStmt::Dump(IRMap *irMap) const {
-  LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << std::endl;
+  LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << '\n';
   PrintIndentation(kDefaultPrintIndentNum);
   LogInfo::MapleLogger() << "opnd[0] = ";
   opnds[0]->Dump(irMap, kDefaultPrintIndentNum);
-  LogInfo::MapleLogger() << std::endl;
+  LogInfo::MapleLogger() << '\n';
   PrintIndentation(kDefaultPrintIndentNum);
   LogInfo::MapleLogger() << "opnd[1] = ";
   opnds[1]->Dump(irMap, kDefaultPrintIndentNum);
-  LogInfo::MapleLogger() << std::endl;
+  LogInfo::MapleLogger() << '\n';
 }
 
 BB *VarMeExpr::DefByBB() {
@@ -1109,7 +1091,7 @@ bool VarMeExpr::IsVolatile(SSATab &ssatab) {
   if (!ost->IsSymbolOst()) {
     return false;
   }
-  MIRSymbol *sym = ost->GetMIRSymbol();
+  const MIRSymbol *sym = ost->GetMIRSymbol();
   if (sym->IsVolatile()) {
     return true;
   }
@@ -1185,38 +1167,37 @@ bool MeExpr::PointsToSomethingThatNeedsIncRef() {
   return false;
 }
 
-MapleMap<OStIdx, ChiMeNode*> *GenericGetChiListFromVarMeExprInner(VarMeExpr *expr,
+MapleMap<OStIdx, ChiMeNode*> *GenericGetChiListFromVarMeExprInner(VarMeExpr &expr,
                                                                   std::unordered_set<VarMeExpr*> &visited) {
-  if (expr == nullptr || expr->GetDefBy() == kDefByNo || visited.find(expr) != visited.end()) {
+  if (expr.GetDefBy() == kDefByNo || visited.find(&expr) != visited.end()) {
     return nullptr;
   }
-  visited.insert(expr);
-  if (expr->GetDefBy() == kDefByPhi) {
-    MeVarPhiNode &phime = expr->GetDefPhi();
+  visited.insert(&expr);
+  if (expr.GetDefBy() == kDefByPhi) {
+    MeVarPhiNode &phime = expr.GetDefPhi();
     MapleVector<VarMeExpr*> &phiopnds = phime.GetOpnds();
     for (auto it = phiopnds.begin(); it != phiopnds.end(); it++) {
-      VarMeExpr *meexpr = *it;
-      MapleMap<OStIdx, ChiMeNode*> *chiList = GenericGetChiListFromVarMeExprInner(meexpr, visited);
+      VarMeExpr *meExpr = *it;
+      MapleMap<OStIdx, ChiMeNode*> *chiList = GenericGetChiListFromVarMeExprInner(*meExpr, visited);
       if (chiList != nullptr) {
         return chiList;
       }
     }
-  } else if (expr->GetDefBy() == kDefByChi) {
-    return expr->GetDefChi().GetBase()->GetChiList();
+  } else if (expr.GetDefBy() == kDefByChi) {
+    return expr.GetDefChi().GetBase()->GetChiList();
   } else {
-    // NYI
+    // not yet implemented
     return nullptr;
   }
   return nullptr;
 }
 
-MapleMap<OStIdx, ChiMeNode*> *GenericGetChiListFromVarMeExpr(VarMeExpr *expr) {
+MapleMap<OStIdx, ChiMeNode*> *GenericGetChiListFromVarMeExpr(VarMeExpr &expr) {
   std::unordered_set<VarMeExpr*> visited;
   return GenericGetChiListFromVarMeExprInner(expr, visited);
 }
 
-void MeStmt::SetCallReturn(MeExpr &curexpr) {
-  ASSERT(GetMustDefList() != nullptr, "null ptr check");
+void CallMeStmt::SetCallReturn(MeExpr &curexpr) {
   MustDefMeNode &mustDefMeNode = GetMustDefList()->front();
   mustDefMeNode.UpdateLHS(curexpr);
 }

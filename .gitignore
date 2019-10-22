@@ -6,3 +6,9 @@
 /tools/ninja*/
 
 /src/bin/maple
+tools/clang*
+tools/ninja*
+tools/gn*
+libjava-core
+out
+

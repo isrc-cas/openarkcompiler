@@ -45,14 +45,6 @@ class MIRBuilder {
     kFoundInChild = 8,   // found in child
   };
 
- private:
-  MIRModule *mirModule;
-  MapleSet<TyIdx> incompleteTypeRefedSet;
-  // <classname strIdx, fieldname strIdx, typename strIdx, attr list strIdx>
-  std::vector<std::tuple<uint32, uint32, uint32, uint32>> extraFieldsTuples;
-  unsigned int lineNum;
-
- public:
   explicit MIRBuilder(MIRModule *module)
       : mirModule(module),
         incompleteTypeRefedSet(std::less<TyIdx>(), mirModule->GetMPAllocator().Adapter()),
@@ -64,8 +56,13 @@ class MIRBuilder {
     mirModule->SetCurFunction(fun);
   }
 
-  virtual MIRFunction *GetCurrentFunction(void) const {
+  virtual MIRFunction *GetCurrentFunction() const {
     return mirModule->CurFunction();
+  }
+  MIRFunction *GetCurrentFunctionNotNull() const {
+    MIRFunction *func = GetCurrentFunction();
+    CHECK_FATAL(func != nullptr, "nullptr check");
+    return func;
   }
 
   MIRModule *GetMirModule() const {
@@ -103,7 +100,7 @@ class MIRBuilder {
   }
 
   MIRFunction *GetOrCreateFunction(const std::string&, TyIdx);
-  MIRFunction *GetFunctionFromSymbol(MIRSymbol *funcst) const;
+  MIRFunction *GetFunctionFromSymbol(const MIRSymbol &funcst) const;
   MIRFunction *GetFunctionFromStidx(StIdx stIdx);
   MIRFunction *GetFunctionFromName(const std::string&);
   // For compiler-generated metadata struct
@@ -111,21 +108,21 @@ class MIRBuilder {
   void AddAddrofFieldConst(const MIRStructType &sType, MIRAggConst &newConst, uint32 fieldID, const MIRSymbol &fieldSt);
   void AddAddroffuncFieldConst(const MIRStructType &sType, MIRAggConst &newConst, uint32 fieldID,
                                const MIRSymbol &funcSt);
-  bool TraverseToNamedField(MIRStructType *structType, GStrIdx nameIdx, uint32 &fieldID);
-  bool IsOfSameType(MIRType *type1, MIRType *type2);
-  bool TraverseToNamedFieldWithTypeAndMatchStyle(MIRStructType *structType, GStrIdx nameIdx, TyIdx typeIdx,
+  bool TraverseToNamedField(MIRStructType &structType, GStrIdx nameIdx, uint32 &fieldID);
+  bool IsOfSameType(MIRType &type1, MIRType &type2);
+  bool TraverseToNamedFieldWithTypeAndMatchStyle(MIRStructType &structType, GStrIdx nameIdx, TyIdx typeIdx,
                                                  uint32 &fieldID, unsigned int matchStyle);
-  void TraverseToNamedFieldWithType(MIRStructType *structType, GStrIdx nameIdx, TyIdx typeIdx, uint32 &fieldID,
+  void TraverseToNamedFieldWithType(MIRStructType &structType, GStrIdx nameIdx, TyIdx typeIdx, uint32 &fieldID,
                                     uint32 &idx);
-  FieldID GetStructFieldIDFromNameAndType(MIRType *type, const std::string &name, TyIdx idx, unsigned int matchStyle);
-  FieldID GetStructFieldIDFromNameAndType(MIRType *type, const std::string &name, TyIdx idx);
-  FieldID GetStructFieldIDFromNameAndTypeParentFirst(MIRType *type, const std::string &name, TyIdx idx);
-  FieldID GetStructFieldIDFromNameAndTypeParentFirstFoundInChild(MIRType *type, const std::string &name, TyIdx idx);
-  FieldID GetStructFieldIDFromFieldName(MIRType *type, const std::string &name);
+  FieldID GetStructFieldIDFromNameAndType(MIRType &type, const std::string &name, TyIdx idx, unsigned int matchStyle);
+  FieldID GetStructFieldIDFromNameAndType(MIRType &type, const std::string &name, TyIdx idx);
+  FieldID GetStructFieldIDFromNameAndTypeParentFirst(MIRType &type, const std::string &name, TyIdx idx);
+  FieldID GetStructFieldIDFromNameAndTypeParentFirstFoundInChild(MIRType &type, const std::string &name, TyIdx idx);
+  FieldID GetStructFieldIDFromFieldName(MIRType &type, const std::string &name);
   FieldID GetStructFieldIDFromFieldNameParentFirst(MIRType *type, const std::string &name);
 
-  void SetStructFieldIDFromFieldName(MIRType *structtype, const std::string &name, GStrIdx newStrIdx,
-                                     const MIRType *newFieldType);
+  void SetStructFieldIDFromFieldName(MIRType &structtype, const std::string &name, GStrIdx newStrIdx,
+                                     const MIRType &newFieldType);
   // for creating Function.
   MIRSymbol *GetFunctionArgument(MIRFunction *fun, uint32 index) const {
     CHECK(index < fun->GetFormalCount(), "index out of range in GetFunctionArgument");
@@ -140,16 +137,14 @@ class MIRBuilder {
   }
 
   MIRSymbol *GetSymbolFromEnclosingScope(StIdx stIdx);
-
- public:
-  virtual MIRSymbol *GetOrCreateLocalDecl(const std::string &str, MIRType *type);
+  virtual MIRSymbol *GetOrCreateLocalDecl(const std::string &str, MIRType &type);
   MIRSymbol *GetLocalDecl(const std::string &str);
-  MIRSymbol *CreateLocalDecl(const std::string &str, const MIRType *type);
+  MIRSymbol *CreateLocalDecl(const std::string &str, const MIRType &type);
   MIRSymbol *GetOrCreateGlobalDecl(const std::string &str, const MIRType *type);
   MIRSymbol *GetGlobalDecl(const std::string &str);
   MIRSymbol *GetDecl(const std::string &str);
   MIRSymbol *CreateGlobalDecl(const std::string &str, const MIRType *type, MIRStorageClass sc = kScGlobal);
-  MIRSymbol *GetOrCreateDeclInFunc(const std::string &str, const MIRType *type, MIRFunction *func);
+  MIRSymbol *GetOrCreateDeclInFunc(const std::string &str, const MIRType &type, MIRFunction &func);
   // for creating Expression
   ConstvalNode *CreateIntConst(int64, PrimType);
   ConstvalNode *CreateFloatConst(float val);
@@ -289,12 +284,19 @@ class MIRBuilder {
   virtual MapleAllocator *GetCurrentFuncCodeMpAllocator();
 
  private:
-  MIRSymbol *GetOrCreateDecl(const std::string &str, const MIRType *type, MIRFunction *func, bool isLocal,
-                             bool &created);
+  MIRSymbol *GetOrCreateGlobalDecl(const std::string &str, const TyIdx &tyIdx, bool &created) const;
+  MIRSymbol *GetOrCreateLocalDecl(const std::string &str, const TyIdx &tyIdx, MIRSymbolTable &symbolTable,
+                                  bool &created) const;
   bool IsValidCallReturn(const MIRSymbol &ret) const {
     return ret.GetStorageClass() == kScAuto || ret.GetStorageClass() == kScFormal ||
            ret.GetStorageClass() == kScExtern || ret.GetStorageClass() == kScGlobal;
   }
+
+  MIRModule *mirModule;
+  MapleSet<TyIdx> incompleteTypeRefedSet;
+  // <classname strIdx, fieldname strIdx, typename strIdx, attr list strIdx>
+  std::vector<std::tuple<uint32, uint32, uint32, uint32>> extraFieldsTuples;
+  unsigned int lineNum;
 };
 
 }  // namespace maple

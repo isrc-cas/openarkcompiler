@@ -29,40 +29,53 @@ class SSATab : public AnalysisResult {
         mirModule(*mod),
         versionStTable(versmp),
         originalStTable(*memPool, *mod),
-        stmtsSSAPart(versmp),
-        wholeProgramScope(false) {}
+        stmtsSSAPart(versmp) {}
 
-  ~SSATab() {}
+  ~SSATab() = default;
 
-  BaseNode *CreateSSAExpr(BaseNode *expr);
-  void CreateSSAStmt(StmtNode *stmt, const BB *curbb, bool ignoreCallassignedDefs = false);
+  BaseNode *CreateSSAExpr(BaseNode &expr);
+  void CreateSSAStmt(StmtNode &stmt, const BB &curbb, bool ignoreCallassignedDefs = false);
   VersionSt *GetVerSt(size_t verIdx) {
     return versionStTable.GetVersionStFromID(verIdx);
   }
 
   // following are handles to methods in originalStTable
-  OriginalSt *CreateSymbolOriginalSt(MIRSymbol *mirSt, PUIdx puIdx, FieldID fld) {
-    return originalStTable.CreateSymbolOriginalSt(*mirSt, puIdx, fld);
+  OriginalSt *CreateSymbolOriginalSt(MIRSymbol &mirSt, PUIdx puIdx, FieldID fld) {
+    return originalStTable.CreateSymbolOriginalSt(mirSt, puIdx, fld);
   }
 
-  OriginalSt *FindOrCreateSymbolOriginalSt(MIRSymbol *mirSt, PUIdx puIdx, FieldID fld) {
-    return originalStTable.FindOrCreateSymbolOriginalSt(*mirSt, puIdx, fld);
+  OriginalSt *FindOrCreateSymbolOriginalSt(MIRSymbol &mirSt, PUIdx puIdx, FieldID fld) {
+    return originalStTable.FindOrCreateSymbolOriginalSt(mirSt, puIdx, fld);
   }
 
-  const OriginalSt *GetOriginalStFromID(OStIdx id) {
+  const OriginalSt *GetOriginalStFromID(OStIdx id) const {
+    return originalStTable.GetOriginalStFromID(id);
+  }
+  OriginalSt *GetOriginalStFromID(OStIdx id) {
     return originalStTable.GetOriginalStFromID(id);
   }
 
-  const OriginalSt *GetSymbolOriginalStFromID(OStIdx id) {
+  const OriginalSt *GetSymbolOriginalStFromID(OStIdx id) const {
     const OriginalSt *ost = originalStTable.GetOriginalStFromID(id);
     ASSERT(ost->IsSymbolOst(), "GetSymbolOriginalStFromid: id has wrong ost type");
     return ost;
   }
-
-  MIRSymbol *GetMIRSymbolFromOriginalSt(const OriginalSt *ost) {
-    return originalStTable.GetMIRSymbolFromOriginalSt(*ost);
+  OriginalSt *GetSymbolOriginalStFromID(OStIdx id) {
+    OriginalSt *ost = originalStTable.GetOriginalStFromID(id);
+    ASSERT(ost->IsSymbolOst(), "GetSymbolOriginalStFromid: id has wrong ost type");
+    return ost;
   }
 
+  const MIRSymbol *GetMIRSymbolFromOriginalSt(const OriginalSt &ost) const {
+    return originalStTable.GetMIRSymbolFromOriginalSt(ost);
+  }
+  MIRSymbol *GetMIRSymbolFromOriginalSt(OriginalSt &ost) {
+    return originalStTable.GetMIRSymbolFromOriginalSt(ost);
+  }
+
+  const MIRSymbol *GetMIRSymbolFromID(OStIdx id) const {
+    return originalStTable.GetMIRSymbolFromID(id);
+  }
   MIRSymbol *GetMIRSymbolFromID(OStIdx id) {
     return originalStTable.GetMIRSymbolFromID(id);
   }
@@ -120,7 +133,7 @@ class SSATab : public AnalysisResult {
   VersionStTable versionStTable;  // this uses special versmp because it will be freed earlier
   OriginalStTable originalStTable;
   StmtsSSAPart stmtsSSAPart;  // this uses special versmp because it will be freed earlier
-  bool wholeProgramScope;
+  bool wholeProgramScope = false;
 };
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_SSA_TAB_H

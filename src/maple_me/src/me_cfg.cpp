@@ -26,7 +26,6 @@ constexpr int kFuncNameLenLimit = 80;
 }
 
 namespace maple {
-
 void MeCFG::BuildMirCFG() {
   MapleVector<BB*> entryBlocks(func.GetAlloc().Adapter());
   MapleVector<BB*> exitBlocks(func.GetAlloc().Adapter());
@@ -53,7 +52,7 @@ void MeCFG::BuildMirCFG() {
         ASSERT(lastStmt.GetOpCode() == OP_goto, "runtime check error");
         GotoNode &gotoStmt = static_cast<GotoNode&>(lastStmt);
         LabelIdx lblIdx = (LabelIdx)gotoStmt.GetOffset();
-        BB *meBB = func.GetLabelBBIdMap()[lblIdx];
+        BB *meBB = func.GetLabelBBAt(lblIdx);
         bb->GetSucc().push_back(meBB);
         meBB->GetPred().push_back(bb);
         break;
@@ -70,7 +69,7 @@ void MeCFG::BuildMirCFG() {
         /* link goto */
         CondGotoNode &gotoStmt = static_cast<CondGotoNode&>(lastStmt);
         LabelIdx lblIdx = (LabelIdx)gotoStmt.GetOffset();
-        BB *meBB = func.GetLabelBBIdMap()[lblIdx];
+        BB *meBB = func.GetLabelBBAt(lblIdx);
         bb->GetSucc().push_back(meBB);
         meBB->GetPred().push_back(bb);
         break;
@@ -80,12 +79,12 @@ void MeCFG::BuildMirCFG() {
         ASSERT(lastStmt.GetOpCode() == OP_switch, "runtime check error");
         SwitchNode &switchStmt = static_cast<SwitchNode&>(lastStmt);
         LabelIdx lblIdx = switchStmt.GetDefaultLabel();
-        BB *mirBB = func.GetLabelBBIdMap()[lblIdx];
+        BB *mirBB = func.GetLabelBBAt(lblIdx);
         bb->GetSucc().push_back(mirBB);
         mirBB->GetPred().push_back(bb);
         for (size_t j = 0; j < switchStmt.GetSwitchTable().size(); j++) {
           lblIdx = switchStmt.GetCasePair(j).second;
-          BB *meBB = func.GetLabelBBIdMap()[lblIdx];
+          BB *meBB = func.GetLabelBBAt(lblIdx);
           // Avoid duplicate succs.
           auto it = std::find(bb->GetSucc().begin(), bb->GetSucc().end(), meBB);
           if (it == bb->GetSucc().end()) {
@@ -110,15 +109,16 @@ void MeCFG::BuildMirCFG() {
     }
     /* deal try blocks, add catch handler to try's succ */
     if (bb->GetAttributes(kBBAttrIsTry)) {
-      ASSERT((func.GetBBTryNodeMap().find(bb) != func.GetBBTryNodeMap().end()), "try bb without try");
-      StmtNode *currTry = func.GetBBTryNodeMap()[bb];
-      TryNode *tryNode = static_cast<TryNode*>(currTry);
+      auto it = func.GetBBTryNodeMap().find(bb);
+      CHECK_FATAL(it != func.GetBBTryNodeMap().end(), "try bb without try");
+      StmtNode *currTry = it->second;
+      const TryNode *tryNode = static_cast<TryNode*>(currTry);
       bool hasFinallyHandler = false;
       /* add exception handler bb */
       for (size_t j = 0; j < tryNode->GetOffsetsCount(); j++) {
         LabelIdx labelIdx = tryNode->GetOffset(j);
         ASSERT(func.GetLabelBBIdMap().find(labelIdx) != func.GetLabelBBIdMap().end(), "runtime check error");
-        BB *meBB = func.GetLabelBBIdMap()[labelIdx];
+        BB *meBB = func.GetLabelBBAt(labelIdx);
         ASSERT(meBB != nullptr, "null ptr check");
         ASSERT(meBB->GetAttributes(kBBAttrIsCatch), "runtime check error");
         size_t si = 0;
@@ -163,9 +163,9 @@ void MeCFG::BuildMirCFG() {
   }
 }
 
-bool MeCFG::FindExprUse(BaseNode &expr, StIdx stIdx) {
+bool MeCFG::FindExprUse(const BaseNode &expr, StIdx stIdx) const {
   if (expr.GetOpCode() == OP_addrof || expr.GetOpCode() == OP_dread) {
-    AddrofNode &addofNode = static_cast<AddrofNode&>(expr);
+    const AddrofNode &addofNode = static_cast<const AddrofNode&>(expr);
     return addofNode.GetStIdx() == stIdx;
   } else if (expr.GetOpCode() == OP_iread) {
     return FindExprUse(*expr.Opnd(0), stIdx);
@@ -179,7 +179,7 @@ bool MeCFG::FindExprUse(BaseNode &expr, StIdx stIdx) {
   return false;
 }
 
-bool MeCFG::FindUse(StmtNode &stmt, StIdx stID) {
+bool MeCFG::FindUse(const StmtNode &stmt, StIdx stIdx) const {
   Opcode opcode = stmt.GetOpCode();
   switch (opcode) {
     case OP_call:
@@ -210,29 +210,29 @@ bool MeCFG::FindUse(StmtNode &stmt, StIdx stID) {
     case OP_syncexit: {
       for (size_t i = 0; i < stmt.NumOpnds(); i++) {
         BaseNode *argExpr = stmt.Opnd(i);
-        if (FindExprUse(*argExpr, stID)) {
+        if (FindExprUse(*argExpr, stIdx)) {
           return true;
         }
       }
       break;
     }
     case OP_dassign: {
-      DassignNode &dNode = static_cast<DassignNode&>(stmt);
-      return FindExprUse(*dNode.GetRHS(), stID);
+      const DassignNode &dNode = static_cast<const DassignNode&>(stmt);
+      return FindExprUse(*dNode.GetRHS(), stIdx);
     }
     case OP_regassign: {
-      RegassignNode &rNode = static_cast<RegassignNode&>(stmt);
+      const RegassignNode &rNode = static_cast<const RegassignNode&>(stmt);
       if (rNode.GetRegIdx() < 0) {
         return false;
       }
-      return FindExprUse(*rNode.Opnd(0), stID);
+      return FindExprUse(*rNode.Opnd(0), stIdx);
     }
     case OP_iassign: {
-      IassignNode &iNode = static_cast<IassignNode&>(stmt);
-      if (FindExprUse(*iNode.Opnd(0), stID)) {
+      const IassignNode &iNode = static_cast<const IassignNode&>(stmt);
+      if (FindExprUse(*iNode.Opnd(0), stIdx)) {
         return true;
       } else {
-        return FindExprUse(*iNode.GetRHS(), stID);
+        return FindExprUse(*iNode.GetRHS(), stIdx);
       }
     }
     case OP_assertnonnull:
@@ -240,7 +240,7 @@ bool MeCFG::FindUse(StmtNode &stmt, StIdx stID) {
     case OP_free:
     case OP_switch: {
       BaseNode *argExpr = stmt.Opnd(0);
-      return FindExprUse(*argExpr, stID);
+      return FindExprUse(*argExpr, stIdx);
     }
     default:
       break;
@@ -248,22 +248,22 @@ bool MeCFG::FindUse(StmtNode &stmt, StIdx stID) {
   return false;
 }
 
-bool MeCFG::FindDef(StmtNode &stmt, StIdx stid) {
+bool MeCFG::FindDef(const StmtNode &stmt, StIdx stIdx) const {
   if (stmt.GetOpCode() != OP_dassign && !kOpcodeInfo.IsCallAssigned(stmt.GetOpCode())) {
     return false;
   }
   if (stmt.GetOpCode() == OP_dassign) {
-    DassignNode &dassStmt = static_cast<DassignNode &>(stmt);
-    return dassStmt.GetStIdx() == stid;
+    const DassignNode &dassStmt = static_cast<const DassignNode&>(stmt);
+    return dassStmt.GetStIdx() == stIdx;
   } else {
-    CallNode &cnode = static_cast<CallNode &>(stmt);
-    CallReturnVector &nrets = cnode.GetReturnVec();
+    const CallNode &cnode = static_cast<const CallNode&>(stmt);
+    const CallReturnVector &nrets = cnode.GetReturnVec();
     if (nrets.size() != 0) {
       ASSERT(nrets.size() == 1, "Single Ret value for now.");
       StIdx stidx = nrets[0].first;
       RegFieldPair regfieldpair = nrets[0].second;
       if (!regfieldpair.IsReg()) {
-        return stidx == stid;
+        return stidx == stIdx;
       }
     }
   }
@@ -271,7 +271,7 @@ bool MeCFG::FindDef(StmtNode &stmt, StIdx stid) {
 }
 
 // Return true if there is no use or def of sym betweent from to to.
-bool MeCFG::HasNoOccBetween(StmtNode &from, StmtNode &to, StIdx stIdx) {
+bool MeCFG::HasNoOccBetween(StmtNode &from, const StmtNode &to, StIdx stIdx) const {
   for (StmtNode *stmt = &from; stmt && stmt != &to; stmt = stmt->GetNext()) {
     if (FindUse(*stmt, stIdx) || FindDef(*stmt, stIdx)) {
       return false;
@@ -320,7 +320,7 @@ void MeCFG::FixMirCFG() {
           func.GetMirFunc()->IncTempCount();
           std::string tempStr = std::string("tempRet").append(std::to_string(func.GetMirFunc()->GetTempCount()));
           MIRBuilder *builder = func.GetMirFunc()->GetModule()->GetMIRBuilder();
-          MIRSymbol *targetSt = builder->GetOrCreateLocalDecl(tempStr.c_str(), sym->GetType());
+          MIRSymbol *targetSt = builder->GetOrCreateLocalDecl(tempStr.c_str(), *sym->GetType());
           targetSt->ResetIsDeleted();
           if (stmt->GetOpCode() == OP_dassign) {
             BaseNode *rhs = static_cast<DassignNode*>(stmt)->GetRHS();
@@ -384,14 +384,14 @@ void MeCFG::FixMirCFG() {
           if (HasNoOccBetween(*bb->GetStmtNodes().begin().d(), *nextStmt, sym->GetStIdx())) {
             continue;
           }
-          BB *newBB = func.SplitBB(bb, &splitPoint);
+          BB &newBB = func.SplitBB(*bb, splitPoint);
           // because SplitBB will insert a bb, we need update bIt & eIt
           auto newBBIt = std::find(func.cbegin(), func.cend(), bb);
           bIt = build_filter_iterator(
               newBBIt, std::bind(FilterNullPtr<MapleVector<BB*>::const_iterator>, std::placeholders::_1, func.end()));
           eIt = func.valid_end();
-          for (size_t si = 0; si < newBB->GetSucc().size(); si++) {
-            BB *sucBB = newBB->GetSucc(si);
+          for (size_t si = 0; si < newBB.GetSucc().size(); si++) {
+            BB *sucBB = newBB.GetSucc(si);
             if (sucBB->GetAttributes(kBBAttrIsCatch)) {
               bb->AddSuccBB(sucBB);
             }
@@ -430,7 +430,7 @@ void MeCFG::FixMirCFG() {
       splitPoint = splitPoint->GetPrev();
     }
     CHECK_FATAL(splitPoint != nullptr, "null ptr check");
-    BB *newBB = func.SplitBB(bb, splitPoint);
+    BB &newBB = func.SplitBB(*bb, *splitPoint);
     // because SplitBB will insert a bb, we need update bIt & eIt
     auto newBBIt = std::find(func.cbegin(), func.cend(), bb);
     bIt = build_filter_iterator(
@@ -438,11 +438,11 @@ void MeCFG::FixMirCFG() {
     eIt = func.valid_end();
     // redirect all succs of new bb to bb
     size_t si = 0;
-    for (; si < newBB->GetSucc().size(); si++) {
-      BB *sucBB = newBB->GetSucc(si);
+    for (; si < newBB.GetSucc().size(); si++) {
+      BB *sucBB = newBB.GetSucc(si);
       if (sucBB->GetAttributes(kBBAttrIsCatch)) {
-        sucBB->ReplacePred(newBB, bb);
-        newBB->RemoveBBFromSucc(sucBB);
+        sucBB->ReplacePred(&newBB, bb);
+        newBB.RemoveBBFromSucc(sucBB);
         si--;
       }
     }
@@ -454,7 +454,7 @@ void MeCFG::FixMirCFG() {
 
 
 // used only after DSE because it looks at live field of VersionSt
-void MeCFG::ConvertPhis2IdentityAssigns(BB &meBB) {
+void MeCFG::ConvertPhis2IdentityAssigns(BB &meBB) const {
   auto phiIt = meBB.GetPhiList().begin();
   while (phiIt != meBB.GetPhiList().end()) {
     if (!(*phiIt).second.GetResult()->IsLive()) {
@@ -462,25 +462,25 @@ void MeCFG::ConvertPhis2IdentityAssigns(BB &meBB) {
       continue;
     }
     // replace phi with identify assignment as it only has 1 opnd
-    OriginalSt *ost = (*phiIt).first;
+    const OriginalSt *ost = (*phiIt).first;
     if (ost->IsSymbolOst() && ost->GetIndirectLev() == 0) {
-      MIRSymbol *st = ost->GetMIRSymbol();
+      const MIRSymbol *st = ost->GetMIRSymbol();
       MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(st->GetTyIdx());
       AddrofNode *dread = func.GetMIRModule().GetMIRBuilder()->CreateDread(st, GetRegPrimType(type->GetPrimType()));
       AddrofSSANode *dread2 = func.GetMirFunc()->GetCodeMemPool()->New<AddrofSSANode>(dread);
       dread2->SetSSAVar((*phiIt).second.GetPhiOpnd(0));
       DassignNode *dassign = func.GetMIRModule().GetMIRBuilder()->CreateStmtDassign(st, 0, dread2);
       func.GetMeSSATab()->GetStmtsSSAPart().SetSSAPartOf(
-          dassign, func.GetMeSSATab()->GetStmtsSSAPart().GetSSAPartMp()->New<MayDefPartWithVersionSt>(
+          *dassign, func.GetMeSSATab()->GetStmtsSSAPart().GetSSAPartMp()->New<MayDefPartWithVersionSt>(
               &func.GetMeSSATab()->GetStmtsSSAPart().GetSSAPartAlloc()));
       MayDefPartWithVersionSt *theSSAPart =
-          static_cast<MayDefPartWithVersionSt*>(func.GetMeSSATab()->GetStmtsSSAPart().SSAPartOf(dassign));
+          static_cast<MayDefPartWithVersionSt*>(func.GetMeSSATab()->GetStmtsSSAPart().SSAPartOf(*dassign));
       theSSAPart->SetSSAVar((*phiIt).second.GetResult());
       meBB.PrependStmtNode(dassign);
     }
     phiIt++;
   }
-  meBB.GetPhiList().clear();  // delete all the phis
+  meBB.ClearPhiList();  // delete all the phis
   auto varPhiIt = meBB.GetMevarPhiList().begin();
   while (varPhiIt != meBB.GetMevarPhiList().end()) {
     if (!(*varPhiIt).second->GetIsLive()) {
@@ -560,13 +560,13 @@ void MeCFG::UnreachCodeAnalysis(bool updatePhi) {
             // move entrytry tag to previous bb with try
             if ((*it)->GetAttributes(kBBAttrIsTry) && !(*it)->GetAttributes(kBBAttrIsTryEnd)) {
               (*it)->SetAttributes(kBBAttrIsTryEnd);
-              func.GetEndTryBB2TryBB()[*it] = func.GetEndTryBB2TryBB()[bb];
+              func.SetTryBBByOtherEndTryBB(*it, bb);
             }
             break;
           }
         }
       }
-      func.DeleteBasicBlock(bb);
+      func.DeleteBasicBlock(*bb);
       // remove the bb from its succ's pred_ list
       for (auto it = bb->GetSucc().begin(); it != bb->GetSucc().end(); it++) {
         BB *sucBB = *it;
@@ -577,7 +577,7 @@ void MeCFG::UnreachCodeAnalysis(bool updatePhi) {
           if (sucBB->GetPred().size() == 1) {
             ConvertPhis2IdentityAssigns(*sucBB);
           } else if (sucBB->GetPred().empty()) {
-            sucBB->GetPhiList().clear();
+            sucBB->ClearPhiList();
           }
         }
       }
@@ -635,7 +635,7 @@ void MeCFG::WontExitAnalysis() {
 
 // CFG Verify
 // Check bb-vec and bb-list are strictly consistent.
-void MeCFG::Verify() {
+void MeCFG::Verify() const {
   // Check every bb in bb-list.
   auto eIt = func.valid_end();
   for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
@@ -672,7 +672,7 @@ void MeCFG::Verify() {
 }
 
 // check that all the target labels in jump statements are defined
-void MeCFG::VerifyLabels(void) {
+void MeCFG::VerifyLabels() const {
   auto eIt = func.valid_end();
   for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
     BB *mirBB = *bIt;
@@ -681,31 +681,33 @@ void MeCFG::VerifyLabels(void) {
       continue;
     }
     if (mirBB->GetKind() == kBBGoto) {
-      if (mirBB->GetStmtNodes().back().GetOpCode() == OP_throw) {
+      if (stmtNodes.back().GetOpCode() == OP_throw) {
         continue;
       }
-      ASSERT(func.GetLabelBBIdMap()[(LabelIdx) static_cast<GotoNode&>(stmtNodes.back()).GetOffset()]->GetBBLabel() ==
-          (LabelIdx) static_cast<GotoNode&>(stmtNodes.back()).GetOffset(), "undefined label in goto");
+      ASSERT(
+          func.GetLabelBBAt(static_cast<GotoNode&>(stmtNodes.back()).GetOffset())->GetBBLabel() ==
+              static_cast<GotoNode&>(stmtNodes.back()).GetOffset(),
+          "undefined label in goto");
     } else if (mirBB->GetKind() == kBBCondGoto) {
       ASSERT(
-          func.GetLabelBBIdMap()[(LabelIdx) static_cast<CondGotoNode&>(stmtNodes.back()).GetOffset()]->GetBBLabel() ==
-              (LabelIdx) static_cast<CondGotoNode&>(stmtNodes.back()).GetOffset(),
+          func.GetLabelBBAt(static_cast<CondGotoNode&>(stmtNodes.back()).GetOffset())->GetBBLabel() ==
+              static_cast<CondGotoNode&>(stmtNodes.back()).GetOffset(),
           "undefined label in conditional branch");
     } else if (mirBB->GetKind() == kBBSwitch) {
       SwitchNode &switchStmt = static_cast<SwitchNode&>(stmtNodes.back());
       LabelIdx targetLabIdx = switchStmt.GetDefaultLabel();
-      BB *bb = func.GetLabelBBIdMap()[targetLabIdx];
+      BB *bb = func.GetLabelBBAt(targetLabIdx);
       ASSERT(bb->GetBBLabel() == targetLabIdx, "undefined label in switch");
       for (size_t j = 0; j < switchStmt.GetSwitchTable().size(); j++) {
         targetLabIdx = switchStmt.GetCasePair(j).second;
-        bb = func.GetLabelBBIdMap()[targetLabIdx];
+        bb = func.GetLabelBBAt(targetLabIdx);
         ASSERT(bb->GetBBLabel() == targetLabIdx, "undefined switch target label");
       }
     }
   }
 }
 
-void MeCFG::Dump() {
+void MeCFG::Dump() const {
   // BSF  Dump the cfg
   // map<uint32, uint32> visited_map;
   // set<uint32> visited_set;
@@ -750,19 +752,19 @@ static void ReplaceFilename(std::string &fileName) {
   }
 }
 
-static bool ContainsConststr(const BaseNode *x) {
-  if (x->GetOpCode() == OP_conststr || x->GetOpCode() == OP_conststr16) {
+static bool ContainsConststr(const BaseNode &x) {
+  if (x.GetOpCode() == OP_conststr || x.GetOpCode() == OP_conststr16) {
     return true;
   }
-  for (size_t i = 0; i < x->NumOpnds(); i++)
-    if (ContainsConststr(x->Opnd(i))) {
+  for (size_t i = 0; i < x.NumOpnds(); i++)
+    if (ContainsConststr(*x.Opnd(i))) {
       return true;
     }
   return false;
 }
 
 /* generate dot file for cfg */
-void MeCFG::DumpToFile(const std::string &prefix, bool dumpInStrs) {
+void MeCFG::DumpToFile(const std::string &prefix, bool dumpInStrs) const {
   if (MeOption::noDot) {
     return;
   }
@@ -837,7 +839,7 @@ void MeCFG::DumpToFile(const std::string &prefix, bool dumpInStrs) {
         if (stmt.GetOpCode() == OP_comment) {
           continue;
         }
-        if (ContainsConststr(&stmt)) {
+        if (ContainsConststr(stmt)) {
           continue;
         }
         stmt.Dump(func.GetMIRModule(), 1);

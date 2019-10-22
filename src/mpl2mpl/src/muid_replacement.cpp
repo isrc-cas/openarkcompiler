@@ -109,7 +109,7 @@ void MUIDReplacement::CollectFuncAndDataFromKlasses() {
         if (vMethodPair != nullptr) {
           MIRSymbol *funcSymbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(vMethodPair->first.Idx());
           MIRFunction *mirFunc = funcSymbol->GetFunction();
-          if (mirFunc && mirFunc->GetBody() == nullptr && !mirFunc->IsAbstract()) {
+          if (mirFunc != nullptr && mirFunc->GetBody() == nullptr && !mirFunc->IsAbstract()) {
             AddUndefFunc(mirFunc);
           }
         }
@@ -852,7 +852,7 @@ void MUIDReplacement::ReplaceDirectInvokeOrAddroffunc(MIRFunction *currentFunc, 
     currentFunc->GetBody()->InsertBefore(stmt, funcPtrPregAssign);
     readFuncPtr = builder->CreateExprRegread(PTY_ptr, funcPtrPreg);
   } else {
-    funcPtrSym = builder->GetOrCreateLocalDecl(kMuidSymPtrStr, GlobalTables::GetTypeTable().GetVoidPtr());
+    funcPtrSym = builder->GetOrCreateLocalDecl(kMuidSymPtrStr, *GlobalTables::GetTypeTable().GetVoidPtr());
     DassignNode *addrNode = builder->CreateStmtDassign(funcPtrSym, 0, ireadPtrExpr);
     currentFunc->GetBody()->InsertBefore(stmt, addrNode);
     readFuncPtr = builder->CreateExprDread(funcPtrSym);
@@ -919,7 +919,7 @@ void MUIDReplacement::ReplaceDassign(MIRFunction *currentFunc, DassignNode *dass
     currentFunc->GetBody()->InsertBefore(dassignNode, symPtrPregAssign);
     destExpr = builder->CreateExprRegread(PTY_ptr, symPtrPreg);
   } else {
-    symPtrSym = builder->GetOrCreateLocalDecl(kMuidFuncPtrStr, mVoidPtr);
+    symPtrSym = builder->GetOrCreateLocalDecl(kMuidFuncPtrStr, *mVoidPtr);
     DassignNode *addrNode = builder->CreateStmtDassign(symPtrSym, 0, ireadPtrExpr);
     currentFunc->GetBody()->InsertBefore(dassignNode, addrNode);
     destExpr = builder->CreateExprDread(symPtrSym);
@@ -972,7 +972,7 @@ BaseNode *MUIDReplacement::ReplaceDreadExpr(MIRFunction *currentFunc, StmtNode *
     return nullptr;
   }
   size_t i = 0;
-  UnaryNode *uopnd = nullptr;
+  UnaryNode *uOpnd = nullptr;
   BinaryNode *bopnds = nullptr;
   TernaryNode *topnds = nullptr;
   switch (expr->GetOpCode()) {
@@ -989,8 +989,8 @@ BaseNode *MUIDReplacement::ReplaceDreadExpr(MIRFunction *currentFunc, StmtNode *
     }
     default: {
       if (expr->IsUnaryNode()) {
-        uopnd = static_cast<UnaryNode*>(expr);
-        uopnd->SetOpnd(ReplaceDreadExpr(currentFunc, stmt, uopnd->Opnd()), i);
+        uOpnd = static_cast<UnaryNode*>(expr);
+        uOpnd->SetOpnd(ReplaceDreadExpr(currentFunc, stmt, uOpnd->Opnd()), i);
       } else if (expr->IsBinaryNode()) {
         bopnds = static_cast<BinaryNode*>(expr);
         for (i = 0; i < bopnds->NumOpnds(); i++) {

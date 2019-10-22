@@ -50,7 +50,7 @@ class Dominance : public AnalysisResult {
   void ComputeDomChildren();
   void ComputeDtPreorder(const BB &bb, size_t &num);
   void ComputeDtDfn();
-  bool Dominate(const BB &b1, BB &b2);  // true if b1 dominates b2
+  bool Dominate(const BB &bb1, BB &bb2);  // true if bb1 dominates bb2
   void DumpDoms();
   void PdomGenPostOrderID();
   void ComputePostDominance();
@@ -58,12 +58,9 @@ class Dominance : public AnalysisResult {
   void ComputePdomChildren();
   void ComputePdtPreorder(const BB &bb, size_t &num);
   void ComputePdtDfn();
-  bool PostDominate(const BB &b1, BB &b2);  // true if b1 postdominates b2
+  bool PostDominate(const BB &bb1, BB &bb2);  // true if bb1 postdominates bb2
   void DumpPdoms();
 
-  MapleVector<BB*> &GetBBVec() {
-    return bbVec;
-  }
   const MapleVector<BB*> &GetBBVec() const {
     return bbVec;
   }
@@ -76,19 +73,19 @@ class Dominance : public AnalysisResult {
     return bbVec.size();
   }
 
-  BB *GetBBAt(uint i) {
+  BB *GetBBAt(size_t i) const {
     return bbVec[i];
   }
 
-  BB &GetCommonEntryBB() {
+  BB &GetCommonEntryBB() const {
     return commonEntryBB;
   }
 
-  BB &GetCommonExitBB() {
+  BB &GetCommonExitBB() const {
     return commonExitBB;
   }
 
-  MapleVector<int32> &GetPostOrderIDVec() {
+  const MapleVector<int32> &GetPostOrderIDVec() const {
     return postOrderIDVec;
   }
 
@@ -96,7 +93,7 @@ class Dominance : public AnalysisResult {
     return reversePostOrder;
   }
 
-  const MapleVector<BB*> &Getdoms() const {
+  const MapleVector<BB*> &GetDoms() const {
     return doms;
   }
 
@@ -104,7 +101,7 @@ class Dominance : public AnalysisResult {
     return dtPreOrder;
   }
 
-  BBId &GetDtPreOrderItem(size_t idx) {
+  BBId GetDtPreOrderItem(size_t idx) const {
     return dtPreOrder[idx];
   }
 
@@ -132,8 +129,8 @@ class Dominance : public AnalysisResult {
     return pdomChildren[idx];
   }
 
-  MapleVector<BBId> &GetPdtPreOrder() {
-    return pdtPreOrder;
+  void ResizePdtPreOrder(int n) {
+    pdtPreOrder.resize(n);
   }
 
   BBId GetPdtPreOrderItem(size_t idx) const {
@@ -195,11 +192,12 @@ class Dominance : public AnalysisResult {
  protected:
   MapleAllocator domAllocator;  // stores the analysis results
 
-  void PostOrderWalk(BB &bb, int32 &pid, std::vector<bool> &visitedMap);
+  void PostOrderWalk(const BB &bb, int32 &pid, std::vector<bool> &visitedMap);
   BB *Intersect(BB &bb1, const BB &bb2);
-  bool CommonEntryBBIsPred(const BB &bb);
+  bool CommonEntryBBIsPred(const BB &bb) const;
   void PdomPostOrderWalk(BB &bb, int32 &pid, std::vector<bool> &visitedMap);
   BB *PdomIntersect(BB &bb1, const BB &bb2);
+
  private:
   MapleAllocator tmpAllocator;  // can be freed after dominator computation
   MapleVector<BB*> &bbVec;

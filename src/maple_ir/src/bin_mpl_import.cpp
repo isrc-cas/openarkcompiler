@@ -25,7 +25,6 @@
 #include "mir_builder.h"
 
 namespace maple {
-
 uint8 BinaryMplImport::Read() {
   CHECK_FATAL(bufI < buf.size(), "Index out of bound in BinaryMplImport::Read()");
   return buf[bufI++];
@@ -380,7 +379,8 @@ void BinaryMplImport::ImportInfoOfClassType(std::vector<bool> &infoIsString, std
   for (int64 i = 0; i < size; i++) {
     GStrIdx idx = ImportStr();
     int64 x = (infoIsString[i]) ? ImportStr().GetIdx() : ReadNum();
-    ASSERT(x >= 0 && x <= std::numeric_limits<uint32_t>::max(), "ReadNum too large, x: %d", x);
+    ASSERT(x >= 0, "ReadNum nagative, x: %d", x);
+    ASSERT(x <= std::numeric_limits<uint32_t>::max(), "ReadNum too large, x: %d", x);
     if (isEmpty) {
       infos.push_back(MIRInfoPair(idx, static_cast<uint32>(x)));
     }
@@ -892,5 +892,4 @@ bool BinaryMplImport::Import(const std::string &fname, bool readSymbols, bool re
   SetupEHRootType();
   return true;
 }
-
 }  // namespace maple

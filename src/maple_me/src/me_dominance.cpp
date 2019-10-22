@@ -21,9 +21,8 @@
 // For some backward data-flow problems, such as LiveOut,
 // the reverse CFG(The CFG with its edges reversed) is always useful,
 // so we also generates the above two structures on the reverse CFG.
-
 namespace maple {
-AnalysisResult *MeDoDominance::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr *mrm) {
+AnalysisResult *MeDoDominance::Run(MeFunction *func, MeFuncResultMgr *funcResMgr, ModuleResultMgr *moduleResMgr) {
   MemPool *memPool = NewMemPool();
   Dominance *dom = memPool->New<Dominance>(*memPool, *NewMemPool(), func->GetAllBBs(),
                                            *func->GetCommonEntryBB(), *func->GetCommonExitBB());
@@ -41,7 +40,7 @@ AnalysisResult *MeDoDominance::Run(MeFunction *func, MeFuncResultMgr *m, ModuleR
   dom->ComputePdomChildren();
   num = 0;
   dom->ComputePdtPreorder(*func->GetCommonExitBB(), num);
-  dom->GetPdtPreOrder().resize(num);
+  dom->ResizePdtPreOrder(num);
   dom->ComputePdtDfn();
   if (DEBUGFUNC(func)) {
     LogInfo::MapleLogger() << "-----------------Dump dominance info and postdominance info---------\n";

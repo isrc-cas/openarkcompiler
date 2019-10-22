@@ -15,7 +15,11 @@
 #include "alias_analysis_table.h"
 using namespace maple;
 OriginalSt *AliasAnalysisTable::GetPrevLevelNode(const OriginalSt &ost) {
-  return prevLevelNode[ost.GetIndex()];
+  auto it = prevLevelNode.find(ost.GetIndex());
+  if (it != prevLevelNode.end()) {
+    return it->second;
+  }
+  return nullptr;
 }
 
 MapleVector<OriginalSt*> *AliasAnalysisTable::GetNextLevelNodes(const OriginalSt &ost) {
@@ -29,7 +33,7 @@ MapleVector<OriginalSt*> *AliasAnalysisTable::GetNextLevelNodes(const OriginalSt
   return findNode->second;
 }
 
-OriginalSt *AliasAnalysisTable::FindOrCreateAddrofSymbolOriginalSt(const OriginalSt &ost) {
+OriginalSt *AliasAnalysisTable::FindOrCreateAddrofSymbolOriginalSt(OriginalSt &ost) {
   if (prevLevelNode.find(ost.GetIndex()) != prevLevelNode.end()) {
     return prevLevelNode[ost.GetIndex()];
   }
@@ -52,7 +56,7 @@ OriginalSt *AliasAnalysisTable::FindOrCreateExtraLevSymOrRegOriginalSt(OriginalS
   TyIdx ptyIdxOfOSt = ost.GetTyIdx();
   FieldID fldIDInOSt = fld;
   if (ptyIdxOfOSt != ptyIdx) {
-    klassHierarchy.UpdateFieldID(ptyIdx, ptyIdxOfOSt, fldIDInOSt);
+    (void)klassHierarchy.UpdateFieldID(ptyIdx, ptyIdxOfOSt, fldIDInOSt);
   }
   MapleVector<OriginalSt*> *nextLevelOsts = GetNextLevelNodes(ost);
   OriginalSt *nextLevOst = FindExtraLevOriginalSt(*nextLevelOsts, fldIDInOSt);
@@ -76,8 +80,9 @@ OriginalSt *AliasAnalysisTable::FindOrCreateExtraLevSymOrRegOriginalSt(OriginalS
   ptyIdx = (ptyIdx == 0) ? ost.GetTyIdx() : ptyIdx;
   if (ptyIdx != 0) {
     // use the tyIdx info from the instruction
-    MIRPtrType *ptType = dynamic_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptyIdx));
-    if (ptType != nullptr) {
+    MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptyIdx);
+    if (mirType->GetKind() == kTypePointer) {
+      MIRPtrType *ptType = static_cast<MIRPtrType*>(mirType);
       TyIdxFieldAttrPair fieldPair = ptType->GetPointedTyIdxFldAttrPairWithFieldID(fld);
       nextLevOst->SetTyIdx(fieldPair.first);
       nextLevOst->SetIsFinal(fieldPair.second.GetAttr(FLDATTR_final) && !mirModule.CurFunction()->IsConstructor());
@@ -111,7 +116,7 @@ OriginalSt *AliasAnalysisTable::FindExtraLevOriginalSt(const MapleVector<Origina
   return nullptr;
 }
 
-OriginalSt *AliasAnalysisTable::FindOrCreateDiffFieldOriginalSt(const OriginalSt &ost, FieldID fld) {
+OriginalSt *AliasAnalysisTable::FindOrCreateDiffFieldOriginalSt(OriginalSt &ost, FieldID fld) {
   OriginalSt *parentOst = prevLevelNode[ost.GetIndex()];
   if (parentOst == nullptr) {
     ASSERT(ost.IsSymbolOst(), "only SymbolOriginalSt expected");
@@ -126,9 +131,9 @@ OriginalSt *AliasAnalysisTable::FindOrCreateDiffFieldOriginalSt(const OriginalSt
   // create a new node
   TyIdxFieldAttrPair nextLevFieldPair;
   if (parentOst->GetTyIdx() != 0) {
-    MIRPtrType *ptType =
-        dynamic_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(parentOst->GetTyIdx()));
-    if (ptType != nullptr) {
+    MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(parentOst->GetTyIdx());
+    if (mirType->GetKind() == kTypePointer) {
+      MIRPtrType *ptType = static_cast<MIRPtrType*>(mirType);
       nextLevFieldPair = ptType->GetPointedTyIdxFldAttrPairWithFieldID(fld);
     }
   }

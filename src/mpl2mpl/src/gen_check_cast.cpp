@@ -26,19 +26,7 @@
 //    Throws ClassCastException if the cast is not possible, continues execution otherwise.
 //    in our case check if object can be cast or insert MCC_Reflect_ThrowCastException
 //    before the stmt.
-// #2 optimise opcode instance-of vx,vy,type_id
-//    If target class is is final class or is private and inner class and has no subclass,it
-//    means there can't be subclass of target class,so if  a obj is instance of target
-//    class , the obj must be referred the target class,replace the instance-of with
-//    maple IR,the IR do the things check if obj.getClass() == target_class,below is the detail
-//    suppose the obj is %obj, target-class is T,result is saved in reg %1
-//    regassign u1 %1 (constval u1 0)
-//    brfalse (ne u1 ptr (regread ref %obj, constval ptr 0))  #check if obj is null
-//    #check if obj's class is equal the target class ,if equal set the result 1
-//    brflase (eq u1 ptr(
-//      iread ptr <* <$Ljava_2Flang_2FObject_3B>> 1 (regread ref %obj),
-//      addrof ptr T))
-//    regassign u1 %1 (constval u1 1)
+// #2 optimise instance-of && cast
 
 namespace maple {
 CheckCastGenerator::CheckCastGenerator(MIRModule *mod, KlassHierarchy *kh, bool dump)
@@ -50,6 +38,8 @@ CheckCastGenerator::CheckCastGenerator(MIRModule *mod, KlassHierarchy *kh, bool 
 
 void CheckCastGenerator::InitTypes() {
   pointerObjType = GlobalTables::GetTypeTable().GetOrCreatePointerType(WKTypes::Util::GetJavaLangObjectType());
+  classinfoType = GlobalTables::GetTypeTable().GetOrCreateClassType(NameMangler::kClassMetadataTypeName, GetModule());
+  pointerClassMetaType = GlobalTables::GetTypeTable().GetOrCreatePointerType(classinfoType);
 }
 
 void CheckCastGenerator::InitFuncs() {
@@ -59,6 +49,7 @@ void CheckCastGenerator::InitFuncs() {
   checkCastingNoArray->SetAttr(FUNCATTR_nosideeffect);
   checkCastingArray = builder->GetOrCreateFunction(kMCCReflectCheckCastingArray, TyIdx(PTY_void));
   checkCastingArray->SetAttr(FUNCATTR_nosideeffect);
+
 }
 
 MIRSymbol *CheckCastGenerator::GetOrCreateClassInfoSymbol(const std::string &className) {
@@ -203,8 +194,8 @@ void CheckCastGenerator::GenCheckCast(BaseNode *stmt) {
   }
   BaseNode *opnd = callNode->Opnd(0);
   ASSERT(opnd->GetOpCode() == OP_dread || opnd->GetOpCode() == OP_regread || opnd->GetOpCode() == OP_iread ||
-             opnd->GetOpCode() == OP_retype,
-         "unknown calltype! check it!");
+         opnd->GetOpCode() == OP_retype, "unknown calltype! check it!");
+
   MIRType *fromType = nullptr;
   if (opnd->GetOpCode() == OP_dread) {
     fromType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(
@@ -241,9 +232,10 @@ void CheckCastGenerator::GenCheckCast(BaseNode *stmt) {
       fromType = GlobalTables::GetTypeTable().GetTypeTable()[PTY_ptr];
     }
   }
-  ASSERT((fromType->GetPrimType() == maple::PTY_ptr || fromType->GetPrimType() == maple::PTY_ref) &&
-         (GlobalTables::GetTypeTable().GetTypeFromTyIdx(callNode->GetTyIdx())->GetPrimType() == maple::PTY_ptr ||
-          GlobalTables::GetTypeTable().GetTypeFromTyIdx(callNode->GetTyIdx())->GetPrimType() == maple::PTY_ref),
+  ASSERT((fromType->GetPrimType() == maple::PTY_ptr || fromType->GetPrimType() == maple::PTY_ref),
+         "unknown fromType! check it!");
+  ASSERT(GlobalTables::GetTypeTable().GetTypeFromTyIdx(callNode->GetTyIdx())->GetPrimType() == maple::PTY_ptr ||
+          GlobalTables::GetTypeTable().GetTypeFromTyIdx(callNode->GetTyIdx())->GetPrimType() == maple::PTY_ref,
          "unknown fromType! check it!");
   const size_t callNodeNretSize1 = callNode->GetReturnVec().size();
   CHECK_FATAL(callNodeNretSize1 > 0, "container check");

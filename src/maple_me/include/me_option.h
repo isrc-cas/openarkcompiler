@@ -26,15 +26,16 @@ class MeOption {
   explicit MeOption(MemPool &memPool) : optionAlloc(&memPool) {}
 
   void ParseOptions(int argc, char **argv, std::string &fileName);
-  ~MeOption() {}
+  ~MeOption() = default;
 
-  void DumpUsage();
   static bool DumpPhase(const std::string &phase);
   static std::unordered_set<std::string> dumpPhases;
-  static constexpr int kLevelZero = 0;
-  static constexpr int kLevelOne = 1;
-  static constexpr int kLevelTwo = 2;
-  static constexpr int kLevelThree = 3;
+  enum Level {
+    LEVEL_ZERO = 0,
+    LEVEL_ONE = 1,
+    LEVEL_TWO = 2,
+    LEVEL_THREE = 3
+  };
   static bool dumpAfter;
   static constexpr int kRangeArrayLen = 2;
   static unsigned long range[kRangeArrayLen];
@@ -52,10 +53,13 @@ class MeOption {
   static bool lessThrowAlias;
   static bool finalFieldAlias;
   static bool regreadAtReturn;
-  void SplitPhases(const std::string &str, std::unordered_set<std::string> &set);
-  void GetRange(const std::string &str);
+  void SplitPhases(const std::string &str, std::unordered_set<std::string> &set) const;
+  void SplitSkipPhases(const std::string &str) {
+    SplitPhases(str, skipPhases);
+  }
+  void GetRange(const std::string &str) const;
 
-  std::unordered_set<std::string> &GetSkipPhases() {
+  const std::unordered_set<std::string> &GetSkipPhases() const {
     return skipPhases;
   }
 
@@ -67,7 +71,7 @@ class MeOption {
 #ifndef DEBUGFUNC
 #define DEBUGFUNC(f)                                                         \
   (MeOption::dumpPhases.find(PhaseName()) != MeOption::dumpPhases.end() && \
-   (MeOption::dumpFunc.compare("*") == 0 || f->GetName().find(MeOption::dumpFunc.c_str()) != std::string::npos))
+   (MeOption::dumpFunc.compare("*") == 0 || f->GetName().find(MeOption::dumpFunc) != std::string::npos))
 #endif
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_ME_OPTION_H
