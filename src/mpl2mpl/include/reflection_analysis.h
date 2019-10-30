@@ -20,7 +20,7 @@ namespace maple {
 // +1 is needed here because our field id starts with 0 pointing to the struct itself
 #define OBJ_KLASS_FIELDID (static_cast<uint32>(ClassProperty::kShadow) + 1)
 #define METADATA_KLASS_FIELDID (static_cast<uint32>(ClassProperty::kShadow) + 1)
-static constexpr bool raDebug = false;
+static constexpr bool kRADebug = false;
 static constexpr int64 kTBDValue = 0xABCD;
 static constexpr int kMaxOptimiseThreshold = 6;
 static constexpr uint32 kMethodFieldHashSize = 1022;
@@ -174,7 +174,7 @@ static constexpr uint64 kMethodNotVirtual = 0x00000001;
 static constexpr uint64 kMethodFinalize = 0x00000002;
 static constexpr uint64 kMethodMetaCompact = 0x00000004;
 static constexpr uint64 kMethodAbstract = 0x00000010;
-#define CaseCondition(ARRAYNAME, ELEM)                                                                     \
+#define CASE_CONDITION(ARRAYNAME, ELEM)                                                                     \
   case kValueInt:                                                                                          \
     ARRAYNAME += std::to_string(ELEM->GetI32Val());                                                        \
     oss.str();                                                                                             \
@@ -216,9 +216,6 @@ static constexpr uint64 kMethodAbstract = 0x00000010;
     break;
 class ReflectionAnalysis : public AnalysisResult {
  public:
-  static void GenStrTab(MIRModule *mirmodule);
-  static uint32 FindOrInsertRepeatString(const std::string &str, bool isHot = false, uint8 hotType = kLayoutUnused);
-  static BaseNode *GenClassInfoAddr(BaseNode *obj, MIRBuilder *builder);
   ReflectionAnalysis(MIRModule *mod, MemPool *memPool, KlassHierarchy *kh, MIRBuilder &builder)
       : AnalysisResult(memPool),
         mirModule(mod),
@@ -228,9 +225,10 @@ class ReflectionAnalysis : public AnalysisResult {
         classTab(allocator.Adapter()) {
     isLibcore = -1;
   }
-
-  ~ReflectionAnalysis() {}
-
+  ~ReflectionAnalysis() = default;
+  static void GenStrTab(MIRModule &mirmodule);
+  static uint32 FindOrInsertRepeatString(const std::string &str, bool isHot = false, uint8 hotType = kLayoutUnused);
+  static BaseNode *GenClassInfoAddr(BaseNode *obj, MIRBuilder &builder);
   static TyIdx GetClassMetaDataTyIdx() {
     return classMetadataTyIdx;
   }
@@ -279,50 +277,50 @@ class ReflectionAnalysis : public AnalysisResult {
   MIRSymbol *GetSymbol(const std::string &name, TyIdx tyIdx);
   MIRSymbol *CreateSymbol(GStrIdx strIdx, TyIdx tyIdx);
   MIRSymbol *GetSymbol(GStrIdx strIdx, TyIdx tyIdx);
-  void GenClassMetaData(Klass *klass);
-  std::string GetAnnoValueWithoutArray(const MIRPragmaElement *annoElem);
+  void GenClassMetaData(Klass &klass);
+  std::string GetAnnoValueWithoutArray(const MIRPragmaElement &annoElem);
   void CompressHighFrequencyStr(std::string &s);
   std::string GetArrayValue(MapleVector<MIRPragmaElement*> subElemVector, bool isSN = false);
   std::string GetAnnotationValue(MapleVector<MIRPragmaElement*> subElemVector, GStrIdx typeStrIdx);
-  MIRSymbol *GenSuperClassMetaData(const Klass *klass, std::list<Klass*> superClassList);
-  MIRSymbol *GenFieldsMetaData(const Klass *klass);
-  MIRSymbol *GenMethodsMetaData(const Klass *klass);
-  static void GenMetadataType(MIRModule *mirModule);
-  static MIRType *GetRefFieldType(MIRBuilder *mirBuilder);
-  static TyIdx GenMetaStructType(MIRModule *mirModule, MIRStructType &metaType, const std::string &str);
+  MIRSymbol *GenSuperClassMetaData(const Klass &klass, std::list<Klass*> superClassList);
+  MIRSymbol *GenFieldsMetaData(const Klass &klass);
+  MIRSymbol *GenMethodsMetaData(const Klass &klass);
+  static void GenMetadataType(MIRModule &mirModule);
+  static MIRType *GetRefFieldType(MIRBuilder &mirBuilder);
+  static TyIdx GenMetaStructType(MIRModule &mirModule, MIRStructType &metaType, const std::string &str);
   int64 GetHashIndex(const std::string &strname);
-  static void GenHotClassNameString(const Klass *klass);
+  static void GenHotClassNameString(const Klass &klass);
   uint32 FindOrInsertReflectString(const std::string &str);
   static void InitReflectString();
   int64 BKDRHash(const std::string &strname, uint32 seed);
   void GenClassHashMetaData();
   void MarkWeakMethods();
   void Run();
-  bool VtableFunc(const MIRFunction *func) const;
+  bool VtableFunc(const MIRFunction &func) const;
   void GenPrimitiveClass();
   bool RootClassDefined();  // wether current module defines root classes
   void GenAllMethodHash(std::vector<std::pair<MethodPair*, int>> &methodInfoVec,
                         std::unordered_map<uint32, std::string> &baseNameMap,
                         std::unordered_map<uint32, std::string> &fullNameMap);
   void GenAllFieldHash(std::vector<std::pair<FieldPair, uint16>> &fieldV);
-  void GeneAnnotation(std::map<int, int> &idxNumMap, std::string &annoArr, MIRClassType *classType,
+  void GeneAnnotation(std::map<int, int> &idxNumMap, std::string &annoArr, MIRClassType &classType,
                       PragmaKind paragKind, const std::string &paragName, TyIdx fieldTypeIdx,
                       std::map<int, int> *paramNumArray = nullptr, int *paramIndex = nullptr);
-  void SetAnnoFieldConst(const MIRStructType *metadataRoType, MIRAggConst &newConst, uint32 fieldID,
+  void SetAnnoFieldConst(const MIRStructType &metadataRoType, MIRAggConst &newConst, uint32 fieldID,
                          std::map<int, int> &idxNumMap, const std::string &annoArr);
   bool IsAnonymousClass(const std::string &annotationString);
-  bool IsPrivateClass(MIRClassType *classType);
-  bool IsStaticClass(MIRClassType *classType);
-  void CheckPrivateInnerAndNoSubClass(Klass *clazz, const std::string &annoArr);
+  bool IsPrivateClass(MIRClassType &classType);
+  bool IsStaticClass(MIRClassType &classType);
+  void CheckPrivateInnerAndNoSubClass(Klass &clazz, const std::string &annoArr);
   void ConvertMapleClassName(const std::string &mplClassName, std::string &javaDsp);
   static void ConvertMethodSig(std::string &signature);
   int GetDeflateStringIdx(const std::string &subStr);
   uint32 GetAnnoCstrIndex(std::map<int, int> &idxNumMap, const std::string &annoArr);
-  int16 GetMethodInVtabIndex(const Klass *clazz, const MIRFunction *func);
-  void GetSignatureTypeNames(const char *signature, std::vector<std::string> &typeNames);
-  MIRSymbol *GetClinitFuncSymbol(const Klass *klass);
-  int SolveAnnotation(MIRClassType *classType, MIRFunction *func);
-  uint32 GetTypeNameIdxFromType(MIRType *type, const Klass *klass, const std::string &fieldName);
+  int16 GetMethodInVtabIndex(const Klass &clazz, const MIRFunction &func);
+  void GetSignatureTypeNames(const std::string &signature, std::vector<std::string> &typeNames);
+  MIRSymbol *GetClinitFuncSymbol(const Klass &klass);
+  int SolveAnnotation(MIRClassType &classType, MIRFunction &func);
+  uint32 GetTypeNameIdxFromType(MIRType &type, const Klass &klass, const std::string &fieldName);
 
  private:
   MIRModule *mirModule;
@@ -355,7 +353,7 @@ class DoReflectionAnalysis : public ModulePhase {
  public:
   explicit DoReflectionAnalysis(ModulePhaseID id) : ModulePhase(id) {}
 
-  ~DoReflectionAnalysis() {}
+  ~DoReflectionAnalysis() = default;
 
   AnalysisResult *Run(MIRModule *module, ModuleResultMgr *m) override;
   std::string PhaseName() const override {

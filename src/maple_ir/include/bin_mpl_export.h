@@ -76,34 +76,34 @@ class BinaryMplExport {
   virtual ~BinaryMplExport() {}
 
   void Export(const std::string &fname);
-  void WriteContentField(int fieldNum, uint64 *fieldStartP);
+  void WriteContentField(int fieldNum, uint64 &fieldStartP);
   void WriteStrField(uint64 contentIdx);
   void WriteTypeField(uint64 contentIdx);
   void Init();
   void OutputConst(MIRConst *c);
-  void OutputConstBase(const MIRConst *c);
+  void OutputConstBase(const MIRConst &c);
   void OutputStr(const GStrIdx &gstr);
   void OutputUsrStr(UStrIdx ustr);
-  void OutputTypePairs(MIRInstantVectorType *typ);
-  void OutputTypeBase(const MIRType *type);
+  void OutputTypePairs(MIRInstantVectorType &typ);
+  void OutputTypeBase(const MIRType &type);
   void OutputType(const TyIdx &tyIdx);
   void OutputTypeAttrs(const TypeAttrs &ta);
-  void OutputPragmaElement(const MIRPragmaElement *e);
-  void OutputPragma(const MIRPragma *p);
+  void OutputPragmaElement(const MIRPragmaElement &e);
+  void OutputPragma(const MIRPragma &p);
   void OutputFieldPair(const FieldPair &fp);
   void OutputMethodPair(const MethodPair &memPool);
   void OutputFieldsOfStruct(const FieldVector &fields);
   void OutputMethodsOfStruct(const MethodVector &methods);
-  void OutputStructTypeData(MIRStructType *type);
+  void OutputStructTypeData(MIRStructType &type);
   void OutputImplementedInterfaces(const std::vector<TyIdx> &interfaces);
   void OutputInfoIsString(const std::vector<bool> &infoIsString);
   void OutputInfo(const std::vector<MIRInfoPair> &info, const std::vector<bool> &infoIsString);
   void OutputPragmaVec(const std::vector<MIRPragma*> &pragmaVec);
-  void OutputClassTypeData(MIRClassType *type);
-  void OutputInterfaceTypeData(MIRInterfaceType *type);
-  void OutputSymbol(MIRSymbol *sym);
+  void OutputClassTypeData(MIRClassType &type);
+  void OutputInterfaceTypeData(MIRInterfaceType &type);
+  void OutputSymbol(const MIRSymbol *sym);
   void OutputFunction(PUIdx puIdx);
-  void OutWords(uint8 *typeTagged, int64 targetTag, uint16 size);
+  void OutWords(uint8 &typeTagged, int64 targetTag, uint16 size);
   void Write(uint8 b);
   void WriteInt(int32 x);
   uint8 Read();
@@ -111,7 +111,7 @@ class BinaryMplExport {
   void WriteInt64(int64 x);
   void WriteNum(int64 x);
   void WriteAsciiStr(const std::string &str);
-  void Fixup(uint64 i, int32 x);
+  void Fixup(size_t i, int32 x);
   void DumpBuf(const std::string &modid);
   void AppendAt(const std::string &fname, int32 ipaIdx);
   const MIRModule &GetMIRModule() const {
@@ -126,7 +126,7 @@ class BinaryMplExport {
   std::unordered_map<MIRFunction*, int64> funcMark;
   std::string importFileName;
   std::unordered_map<UStrIdx, int64, UStrIdxHash> uStrMark;
-  std::unordered_map<MIRSymbol*, int64> symMark;
+  std::unordered_map<const MIRSymbol*, int64> symMark;
   std::unordered_map<MIRType*, int64> typMark;
   static int typeMarkOffset;  // offset of mark (tag in binmplimport) resulting from duplicated function
   void ExpandFourBuffSize();

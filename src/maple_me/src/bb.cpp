@@ -113,9 +113,9 @@ const PhiNode *BB::PhiofVerStInserted(const VersionSt &versionSt) const {
 }
 
 void BB::InsertPhi(MapleAllocator *alloc, VersionSt *versionSt) {
-  PhiNode phiNode(alloc, versionSt);
+  PhiNode phiNode(*alloc, *versionSt);
   for (auto prevIt = pred.begin(); prevIt != pred.end(); prevIt++) {
-    phiNode.GetPhiOpns().push_back(versionSt);
+    phiNode.GetPhiOpnds().push_back(versionSt);
   }
   phiList.insert(std::make_pair(versionSt->GetOrigSt(), phiNode));
 }
@@ -150,8 +150,8 @@ void BB::RemoveBBFromPred(BB *bb) {
   int index = bb->RemoveBBFromVector(pred);
   ASSERT(index != -1, "-1 is a very large number in BB::RemoveBBFromPred");
   for (auto phiIt = phiList.begin(); phiIt != phiList.end(); phiIt++) {
-    ASSERT((*phiIt).second.GetPhiOpns().size() > index, "index out of range in BB::RemoveBBFromPred");
-    (*phiIt).second.GetPhiOpns().erase((*phiIt).second.GetPhiOpns().cbegin() + index);
+    ASSERT((*phiIt).second.GetPhiOpnds().size() > index, "index out of range in BB::RemoveBBFromPred");
+    (*phiIt).second.GetPhiOpnds().erase((*phiIt).second.GetPhiOpnds().cbegin() + index);
   }
   for (auto phiIt = mevarPhiList.begin(); phiIt != mevarPhiList.end(); phiIt++) {
     ASSERT((*phiIt).second->GetOpnds().size() > index, "index out of range in BB::RemoveBBFromPred");
@@ -350,6 +350,54 @@ void BB::DumpMeVarPhiList(IRMap *irMap) {
 void BB::DumpMeRegPhiList(IRMap *irMap) {
   for (auto phiIt = meregPhiList.begin(); phiIt != meregPhiList.end(); phiIt++) {
     (*phiIt).second->Dump(irMap);
+  }
+}
+
+void SCCOfBBs::Dump() {
+  std::cout << "SCC " << id << " contains" << std::endl;
+  for (BB *bb : bbs) {
+    std::cout << "bb(" << bb->UintID() << ")  ";
+  }
+  std::cout << std::endl;
+}
+
+bool SCCOfBBs::HasCycle() const {
+  CHECK_FATAL(bbs.size() > 0, "should have bbs in the scc");
+  if (bbs.size() > 1) {
+    return true;
+  }
+  BB *bb = bbs[0];
+  for (BB *succ : bb->GetSucc()) {
+    if (succ == bb) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void SCCOfBBs::Verify(MapleVector<SCCOfBBs*> &sccOfBB) {
+  CHECK_FATAL(bbs.size() > 0, "should have bbs in the scc");
+  for (BB *bb : bbs) {
+    SCCOfBBs *scc = sccOfBB.at(bb->UintID());
+    CHECK_FATAL(scc == this, "");
+  }
+}
+
+void SCCOfBBs::SetUp(MapleVector<SCCOfBBs*> &sccOfBB) {
+  for (BB *bb : bbs) {
+    for (BB *succ : bb->GetSucc()) {
+      if (succ == nullptr || sccOfBB.at(succ->UintID()) == this) {
+        continue;
+      }
+      succSCC.insert(sccOfBB[succ->UintID()]);
+    }
+
+    for (BB *pred : bb->GetPred()) {
+      if (pred == nullptr || sccOfBB.at(pred->UintID()) == this) {
+        continue;
+      }
+      predSCC.insert(sccOfBB[pred->UintID()]);
+    }
   }
 }
 }  // namespace maple

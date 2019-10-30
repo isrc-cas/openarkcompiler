@@ -113,26 +113,26 @@ MeOption *MapleCombCompiler::MakeMeOptions(const MplOptions &options, maple::Mem
         break;
       case kAliasAnalysisLevel:
         meOption->aliasAnalysisLevel = std::stoul(opt.Args(), nullptr);
-        if (meOption->aliasAnalysisLevel > MeOption::LEVEL_THREE) {
-          meOption->aliasAnalysisLevel = MeOption::LEVEL_THREE;
+        if (meOption->aliasAnalysisLevel > MeOption::kLevelThree) {
+          meOption->aliasAnalysisLevel = MeOption::kLevelThree;
         }
         switch (meOption->aliasAnalysisLevel) {
-          case MeOption::LEVEL_THREE:
+          case MeOption::kLevelThree:
             meOption->setCalleeHasSideEffect = false;
             meOption->noSteensgaard = false;
             meOption->noTBAA = false;
             break;
-          case MeOption::LEVEL_ZERO:
+          case MeOption::kLevelZero:
             meOption->setCalleeHasSideEffect = true;
             meOption->noSteensgaard = true;
             meOption->noTBAA = true;
             break;
-          case MeOption::LEVEL_ONE:
+          case MeOption::kLevelOne:
             meOption->setCalleeHasSideEffect = false;
             meOption->noSteensgaard = false;
             meOption->noTBAA = true;
             break;
-          case MeOption::LEVEL_TWO:
+          case MeOption::kLevelTwo:
             meOption->setCalleeHasSideEffect = false;
             meOption->noSteensgaard = true;
             meOption->noTBAA = false;
@@ -239,7 +239,7 @@ Options *MapleCombCompiler::MakeMpl2MplOptions(const MplOptions &options, maple:
 ErrorCode MapleCombCompiler::Compile(const MplOptions &options, MIRModulePtr &theModule) {
   MemPool *optMp = mempoolctrler.NewMemPool("maplecomb mempool");
   std::string fileName = GetInputFileName(options);
-  theModule = new MIRModule(fileName.c_str());
+  theModule = new MIRModule(fileName);
   MeOption *meOptions = nullptr;
   Options *mpl2mplOptions = nullptr;
   auto iterMe = std::find(options.runningExes.begin(), options.runningExes.end(), kBinNameMe);

@@ -331,13 +331,13 @@ class VarMeExpr final : public MeExpr {
 class MeVarPhiNode {
  public:
   explicit MeVarPhiNode(MapleAllocator *alloc)
-      : lhs(nullptr), opnds(kOprandNumBinary, nullptr, alloc->Adapter()), isLive(true), defBB(nullptr) {
+      : lhs(nullptr), opnds(kOperandNumBinary, nullptr, alloc->Adapter()), isLive(true), defBB(nullptr) {
     opnds.pop_back();
     opnds.pop_back();
   }
 
   MeVarPhiNode(VarMeExpr *var, MapleAllocator *alloc)
-      : lhs(var), opnds(kOprandNumBinary, nullptr, alloc->Adapter()), isLive(true), defBB(nullptr) {
+      : lhs(var), opnds(kOperandNumBinary, nullptr, alloc->Adapter()), isLive(true), defBB(nullptr) {
     var->SetDefPhi(*this);
     var->SetDefBy(kDefByPhi);
     opnds.pop_back();
@@ -507,7 +507,7 @@ class RegMeExpr : public MeExpr {
 class MeRegPhiNode {
  public:
   explicit MeRegPhiNode(MapleAllocator *alloc)
-      : lhs(nullptr), opnds(kOprandNumBinary, nullptr, alloc->Adapter()), isLive(true), defBB(nullptr) {
+      : lhs(nullptr), opnds(kOperandNumBinary, nullptr, alloc->Adapter()), isLive(true), defBB(nullptr) {
     opnds.pop_back();
     opnds.pop_back();
   }
@@ -807,12 +807,12 @@ class OpMeExpr : public MeExpr {
   bool IsUseSameSymbol(const MeExpr &) const override;
   BaseNode &EmitExpr(SSATab &) override;
   MeExpr *GetOpnd(size_t i) const override {
-    CHECK_FATAL(i < kOprandNumTernary, "OpMeExpr cannot have more than 3 operands");
+    CHECK_FATAL(i < kOperandNumTernary, "OpMeExpr cannot have more than 3 operands");
     return opnds[i];
   }
 
   void SetOpnd(uint32 idx, MeExpr *opndsVal) {
-    CHECK_FATAL(idx < kOprandNumTernary, "out of range in  OpMeExpr::SetOpnd");
+    CHECK_FATAL(idx < kOperandNumTernary, "out of range in  OpMeExpr::SetOpnd");
     opnds[idx] = opndsVal;
   }
 
@@ -869,7 +869,7 @@ class OpMeExpr : public MeExpr {
   }
 
  private:
-  std::array<MeExpr*, kOprandNumTernary> opnds = { nullptr }; // kid
+  std::array<MeExpr*, kOperandNumTernary> opnds = { nullptr }; // kid
   PrimType opndType = kPtyInvalid;                           // from type
   uint8 bitsOffset = 0;
   uint8 bitsSize = 0;
@@ -888,7 +888,7 @@ class IvarMeExpr : public MeExpr {
         fieldID(0),
         maybeNull(true),
         mu(nullptr) {
-    SetNumOpnds(kOprandNumUnary);
+    SetNumOpnds(kOperandNumUnary);
   }
 
   IvarMeExpr(int32 exprid, const IvarMeExpr &ivarme)
@@ -1093,7 +1093,7 @@ class MeStmt {
   }
 
   virtual void Dump(IRMap*) const;
-  MeStmt *GetNextMeStmt();
+  MeStmt *GetNextMeStmt() const;
   virtual size_t NumMeStmtOpnds() const {
     return 0;
   }
@@ -1168,11 +1168,11 @@ class MeStmt {
 
   virtual void DisableNeedIncref() {}
 
-  virtual MeExpr *GetLHS() {
+  virtual MeExpr *GetLHS() const {
     return nullptr;
   }
 
-  virtual MeExpr *GetRHS() {
+  virtual MeExpr *GetRHS() const {
     return nullptr;
   }
 
@@ -1243,11 +1243,11 @@ class MeStmt {
     next = n;
   }
 
-  MeStmt *GetPrev() {
+  MeStmt *GetPrev() const {
     return prev;
   }
 
-  MeStmt *GetNext() {
+  MeStmt *GetNext() const {
     return next;
   }
 
@@ -1438,7 +1438,7 @@ class DassignMeStmt : public MeStmt {
   ~DassignMeStmt() = default;
 
   size_t NumMeStmtOpnds() const {
-    return kOprandNumUnary;
+    return kOperandNumUnary;
   }
 
   MeExpr *GetOpnd(size_t) const {
@@ -1510,7 +1510,7 @@ class DassignMeStmt : public MeStmt {
   }
 
   void Dump(IRMap*) const;
-  MeExpr *GetLHS() {
+  MeExpr *GetLHS() const {
     return lhs;
   }
 
@@ -1518,7 +1518,7 @@ class DassignMeStmt : public MeStmt {
     lhs = value;
   }
 
-  MeExpr *GetRHS() {
+  MeExpr *GetRHS() const {
     return rhs;
   }
 
@@ -1563,7 +1563,7 @@ class RegassignMeStmt : public MeStmt {
   ~RegassignMeStmt() = default;
 
   size_t NumMeStmtOpnds() const {
-    return kOprandNumUnary;
+    return kOperandNumUnary;
   }
 
   MeExpr *GetOpnd(size_t) const {
@@ -1587,11 +1587,11 @@ class RegassignMeStmt : public MeStmt {
     needIncref = false;
   }
 
-  MeExpr *GetLHS() {
+  MeExpr *GetLHS() const {
     return lhs;
   }
 
-  MeExpr *GetRHS() {
+  MeExpr *GetRHS() const {
     return rhs;
   }
 
@@ -1629,7 +1629,7 @@ class MaydassignMeStmt : public MeStmt {
   ~MaydassignMeStmt() = default;
 
   size_t NumMeStmtOpnds() const {
-    return kOprandNumUnary;
+    return kOperandNumUnary;
   }
 
   MeExpr *GetOpnd(size_t) const {
@@ -1689,11 +1689,11 @@ class MaydassignMeStmt : public MeStmt {
   }
 
   void Dump(IRMap*) const;
-  MeExpr *GetLHS() {
+  MeExpr *GetLHS() const {
     return chiList.begin()->second->GetLHS();
   }
 
-  MeExpr *GetRHS() {
+  MeExpr *GetRHS() const {
     return rhs;
   }
 
@@ -1753,7 +1753,7 @@ class IassignMeStmt : public MeStmt {
   }
 
   size_t NumMeStmtOpnds() const {
-    return kOprandNumBinary;
+    return kOperandNumBinary;
   }
 
   MeExpr *GetOpnd(size_t idx) const {
@@ -1802,11 +1802,11 @@ class IassignMeStmt : public MeStmt {
   }
 
   void Dump(IRMap*) const;
-  MeExpr *GetLHS() {
+  MeExpr *GetLHS() const {
     return lhsVar;
   }
 
-  MeExpr *GetRHS() {
+  MeExpr *GetRHS() const {
     return rhs;
   }
 
@@ -2119,7 +2119,6 @@ class IntrinsiccallMeStmt : public NaryMeStmt, public MuChiMePart, public Assign
         MuChiMePart(alloc),
         AssignedPart(alloc),
         intrinsic(static_cast<const IntrinsiccallNode*>(stt)->GetIntrinsic()),
-        oriExprInRcLowering(alloc->Adapter()),
         tyIdx(static_cast<const IntrinsiccallNode*>(stt)->GetTyIdx()),
         retPType(stt->GetPrimType()) {}
 
@@ -2128,7 +2127,6 @@ class IntrinsiccallMeStmt : public NaryMeStmt, public MuChiMePart, public Assign
         MuChiMePart(alloc),
         AssignedPart(alloc),
         intrinsic(id),
-        oriExprInRcLowering(alloc->Adapter()),
         tyIdx(tyid),
         retPType(kPtyInvalid) {}
 
@@ -2137,7 +2135,6 @@ class IntrinsiccallMeStmt : public NaryMeStmt, public MuChiMePart, public Assign
         MuChiMePart(alloc),
         AssignedPart(intrn->mustDefList),
         intrinsic(intrn->GetIntrinsic()),
-        oriExprInRcLowering(alloc->Adapter()),
         tyIdx(intrn->tyIdx),
         retPType(intrn->retPType) {}
 
@@ -2217,13 +2214,8 @@ class IntrinsiccallMeStmt : public NaryMeStmt, public MuChiMePart, public Assign
     return tyIdx;
   }
 
-  MapleVector<MeExpr*> &GetOriExprInRcLowering() {
-    return oriExprInRcLowering;
-  }
-
  private:
   MIRIntrinsicID intrinsic;
-  MapleVector<MeExpr*> oriExprInRcLowering;
   TyIdx tyIdx;
   // Used to store return value type
   PrimType retPType;
@@ -2260,7 +2252,7 @@ class UnaryMeStmt : public MeStmt {
   virtual ~UnaryMeStmt() = default;
 
   size_t NumMeStmtOpnds() const {
-    return kOprandNumUnary;
+    return kOperandNumUnary;
   }
 
   MeExpr *GetOpnd(size_t idx) const {
@@ -2470,7 +2462,7 @@ class ThrowMeStmt : public WithMuMeStmt {
   ~ThrowMeStmt() = default;
 
   size_t NumMeStmtOpnds() const {
-    return kOprandNumUnary;
+    return kOperandNumUnary;
   }
 
   MeExpr *GetOpnd(size_t idx) const {
@@ -2547,12 +2539,12 @@ class AssertMeStmt : public MeStmt {
   }
 
   void SetOpnd(uint32 i, MeExpr *opnd) {
-    CHECK_FATAL(i < kOprandNumBinary, "AssertMeStmt has two opnds");
+    CHECK_FATAL(i < kOperandNumBinary, "AssertMeStmt has two opnds");
     opnds[i] = opnd;
   }
 
   MeExpr *GetOpnd(size_t i) const {
-    CHECK_FATAL(i < kOprandNumBinary, "AssertMeStmt has two opnds");
+    CHECK_FATAL(i < kOperandNumBinary, "AssertMeStmt has two opnds");
     return opnds[i];
   }
 
@@ -2560,7 +2552,7 @@ class AssertMeStmt : public MeStmt {
   StmtNode &EmitStmt(SSATab &ssatab);
 
  private:
-  MeExpr *opnds[kOprandNumBinary];
+  MeExpr *opnds[kOperandNumBinary];
   AssertMeStmt &operator=(const AssertMeStmt &assmestmt) {
     if (&assmestmt == this) {
       return *this;

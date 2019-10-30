@@ -83,7 +83,7 @@ class Phase {
   virtual ~Phase(){};
 
  private:
-  uint memPoolCount = 0;
+  unsigned int memPoolCount = 0;
   std::vector<MemPool*> memPools;
 };
 
@@ -125,13 +125,12 @@ class AnalysisResultManager {
     }
   }
 
-  void AddResult(PhaseIDT id, UnitIR *ir, AnalysisResult *ar) {
-    ASSERT(ar != nullptr, "ar is null in AnalysisResultManager::AddResult");
-    std::pair<PhaseIDT, UnitIR*> key = std::make_pair(id, ir);
+  void AddResult(PhaseIDT id, UnitIR &ir, AnalysisResult &ar) {
+    std::pair<PhaseIDT, UnitIR*> key = std::make_pair(id, &ir);
     if (analysisResults.find(key) != analysisResults.end()) {
-      InvalidAnalysisResult(id, ir);
+      InvalidAnalysisResult(id, &ir);
     }
-    analysisResults.insert(std::make_pair(key, ar));
+    analysisResults.insert(std::make_pair(key, &ar));
   }
 
   void InvalidAnalysisResult(PhaseIDT id, UnitIR *ir) {
@@ -144,11 +143,11 @@ class AnalysisResultManager {
     }
   }
 
-  void InvalidIRbaseAnalysisResult(UnitIR *ir) {
+  void InvalidIRbaseAnalysisResult(UnitIR &ir) {
     PhaseIDT id;
     for (auto it = analysisPhases.begin(); it != analysisPhases.end(); it++) {
       id = it->first;
-      InvalidAnalysisResult(id, ir);
+      InvalidAnalysisResult(id, &ir);
     }
   }
 
@@ -184,6 +183,5 @@ class AnalysisResultManager {
   MapleMap<analysisResultKey, AnalysisResult*> analysisResults;
   MapleMap<PhaseIDT, PhaseT*> analysisPhases;
 };
-
 }  // namespace maple
 #endif  // MAPLE_PHASE_INCLUDE_PHASE_H

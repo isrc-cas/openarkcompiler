@@ -427,7 +427,7 @@ bool OpMeExpr::IsUseSameSymbol(const MeExpr &expr) const {
     return false;
   }
   auto &opMeExpr = static_cast<const OpMeExpr&>(expr);
-  for (uint32 i = 0; i < kOprandNumTernary; i++) {
+  for (uint32 i = 0; i < kOperandNumTernary; i++) {
     if (opnds[i]) {
       if (!opMeExpr.opnds[i]) {
         return false;
@@ -751,7 +751,7 @@ void MeStmt::Dump(IRMap *irMap) const {
 }
 
 // get the real next mestmt that is not a comment
-MeStmt *MeStmt::GetNextMeStmt() {
+MeStmt *MeStmt::GetNextMeStmt() const {
   MeStmt *nextMeStmt = next;
   while (nextMeStmt != nullptr && nextMeStmt->op == OP_comment) {
     nextMeStmt = nextMeStmt->next;

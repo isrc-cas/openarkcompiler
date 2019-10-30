@@ -41,11 +41,11 @@ class PhaseManager {
     CHECK_FATAL(false, "%s is not a valid phase name", pname.c_str());
   }
 
-  void RegisterPhase(PhaseID id, Phase *p) {
-    registeredPhases[id] = p;
+  void RegisterPhase(PhaseID id, Phase &p) {
+    registeredPhases[id] = &p;
   }
 
-  Phase *GetPhaseFromName(const char *pname) {
+  Phase *GetPhaseFromName(const std::string &pname) {
     for (auto it = RegPhaseBegin(); it != RegPhaseEnd(); it++) {
       if (GetPhaseName(it) == pname) {
         return GetPhase(GetPhaseId(it));
@@ -147,7 +147,6 @@ class PhaseManager {
     }
     return total;
   }
-
  protected:
   std::string managerName;
   MapleAllocator allocator;
@@ -155,6 +154,5 @@ class PhaseManager {
   MapleVector<PhaseID> phaseSequences;
   MapleVector<long> phaseTimers;
 };
-
 }  // namespace maple
 #endif  // MAPLE_PHASE_INCLUDE_PHASE_MANAGER_H

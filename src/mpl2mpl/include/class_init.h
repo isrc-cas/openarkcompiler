@@ -24,7 +24,7 @@ static constexpr char kMCCPostClinitCheck[] = "MCC_PostClinitCheck";
 class ClassInit : public FuncOptimizeImpl {
  public:
   ClassInit(MIRModule *mod, KlassHierarchy *kh, bool dump);
-  ~ClassInit() {}
+  ~ClassInit() = default;
 
   FuncOptimizeImpl *Clone() override {
     return new (std::nothrow) ClassInit(*this);
@@ -33,9 +33,9 @@ class ClassInit : public FuncOptimizeImpl {
   void ProcessFunc(MIRFunction *func) override;
 
  private:
-  void GenClassInitCheckProfile(MIRFunction *func, MIRSymbol *classinfo, StmtNode *clinit) const;
-  void GenPreClassInitCheck(MIRFunction *func, const MIRSymbol *classinfo, StmtNode *clinit);
-  void GenPostClassInitCheck(MIRFunction *func, const MIRSymbol *classinfo, StmtNode *clinit);
+  void GenClassInitCheckProfile(MIRFunction &func, MIRSymbol &classinfo, StmtNode *clinit) const;
+  void GenPreClassInitCheck(MIRFunction &func, const MIRSymbol &classinfo, StmtNode *clinit);
+  void GenPostClassInitCheck(MIRFunction &func, const MIRSymbol &classinfo, StmtNode *clinit);
   MIRSymbol *GetClassInfo(const std::string &classname);
   bool CanRemoveClinitCheck(const std::string &clinitClassname);
 };
@@ -44,7 +44,7 @@ class DoClassInit : public ModulePhase {
  public:
   explicit DoClassInit(ModulePhaseID id) : ModulePhase(id) {}
 
-  ~DoClassInit() {}
+  ~DoClassInit() = default;
 
   std::string PhaseName() const override {
     return "clinit";

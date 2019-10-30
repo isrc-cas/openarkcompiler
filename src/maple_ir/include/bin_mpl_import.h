@@ -43,7 +43,7 @@ class BinaryMplImport {
     }
   }
 
-  uint64 GetBufI() {
+  uint64 GetBufI() const {
     return bufI;
   }
 
@@ -51,16 +51,16 @@ class BinaryMplImport {
     bufI = bufIVal;
   }
 
-  bool IsBufEmpty() {
+  bool IsBufEmpty() const {
     return buf.empty();
   }
 
-  size_t GetBufSize() {
+  size_t GetBufSize() const {
     return buf.size();
   }
 
-  int32 GetContent(int64 key) {
-    return content[key];
+  int32 GetContent(int64 key) const {
+    return content.at(key);
   }
 
   void SetImported(bool importedVal) {
@@ -73,10 +73,10 @@ class BinaryMplImport {
   void ReadTypeField();
   void Jump2NextField();
   void Reset();
-  MIRSymbol *GetOrCreateSymbol(const TyIdx &tyIdx, const GStrIdx &strIdx, MIRSymKind mclass, MIRStorageClass sclass,
+  MIRSymbol *GetOrCreateSymbol(TyIdx tyIdx, GStrIdx strIdx, MIRSymKind mclass, MIRStorageClass sclass,
                                MIRFunction *func, uint8 scpID);
-  MIRType *InsertInTypeTables(MIRType *ptype);
-  void InsertInHashTable(MIRType *ptype);
+  MIRType &InsertInTypeTables(MIRType &ptype);
+  void InsertInHashTable(MIRType &ptype);
   void SetupEHRootType();
   void UpdateMethodSymbols();
   void ImportConstBase(MIRConstKind &kind, MIRTypePtr &type, uint32 &fieldID);
@@ -97,17 +97,16 @@ class BinaryMplImport {
   void ImportFieldPair(FieldPair &fp);
   void ImportMethodPair(MethodPair &memPool);
   void ImportMethodsOfStructType(MethodVector &methods);
-  void ImportStructTypeData(MIRStructType *type);
+  void ImportStructTypeData(MIRStructType &type);
   void ImportInterfacesOfClassType(std::vector<TyIdx> &interfaces);
-  void ImportInfoIsStringOfClassType(std::vector<bool> &infoIsString);
-  void ImportInfoOfClassType(std::vector<bool> &infoIsString, std::vector<MIRInfoPair> &infos);
-  void ImportPragmaOfClassType(std::vector<MIRPragma*> &pragmas);
-  void SetClassTyidxOfMethods(MIRStructType *type);
-  void ImportClassTypeData(MIRClassType *type);
-  void ImportInterfaceTypeData(MIRInterfaceType *type);
+  void ImportInfoIsStringOfStructType(MIRStructType &type);
+  void ImportInfoOfStructType(MIRStructType &type);
+  void ImportPragmaOfStructType(MIRStructType &type);
+  void SetClassTyidxOfMethods(MIRStructType &type);
+  void ImportClassTypeData(MIRClassType &type);
+  void ImportInterfaceTypeData(MIRInterfaceType &type);
   PUIdx ImportFunction();
   MIRSymbol *InSymbol(MIRFunction *func);
-  void InWord(int64 targetTag, uint8 **typeTagged, uint16 frameSize);
   void ReadFileAt(const std::string &modid, int32 offset);
   uint8 Read();
   int32 ReadInt();

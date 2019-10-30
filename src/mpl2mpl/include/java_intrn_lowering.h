@@ -23,24 +23,24 @@ namespace maple {
 class JavaIntrnLowering : public FuncOptimizeImpl {
  public:
   JavaIntrnLowering(MIRModule *mod, KlassHierarchy *kh, bool dump);
-  ~JavaIntrnLowering() {}
+  ~JavaIntrnLowering() = default;
 
   FuncOptimizeImpl *Clone() override {
     return new JavaIntrnLowering(*this);
   }
 
  private:
-  void ProcessStmt(StmtNode *stmt) override;
-  void ProcessJavaIntrnMerge(StmtNode *assignNode, const IntrinsicopNode *intrinNode);
+  void ProcessStmt(StmtNode &stmt) override;
+  void ProcessJavaIntrnMerge(StmtNode &assignNode, const IntrinsicopNode &intrinNode);
   BaseNode *JavaIntrnMergeToCvtType(PrimType dtyp, PrimType styp, BaseNode *src);
-  void ProcessJavaIntrnFillNewArray(IntrinsiccallNode *intrinCall);
+  void ProcessJavaIntrnFillNewArray(IntrinsiccallNode &intrinCall);
 };
 
 class DoJavaIntrnLowering : public ModulePhase {
  public:
   explicit DoJavaIntrnLowering(ModulePhaseID id) : ModulePhase(id) {}
 
-  ~DoJavaIntrnLowering() {}
+  ~DoJavaIntrnLowering() = default;
 
   std::string PhaseName() const override {
     return "javaintrnlowering";

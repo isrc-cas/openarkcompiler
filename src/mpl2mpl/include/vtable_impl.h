@@ -19,7 +19,11 @@
 
 namespace maple {
 static constexpr int kNumOfMCCParas = 5;
-enum CallKind { kStaticCall = 0, kVirtualCall = 1, kSuperCall = 2};
+enum CallKind {
+  kStaticCall = 0,
+  kVirtualCall = 1,
+  kSuperCall = 2
+};
 
 #ifdef USE_32BIT_REF
 static constexpr char kInterfaceMethod[] = "MCC_getFuncPtrFromItab";
@@ -30,7 +34,7 @@ static constexpr char kInterfaceMethod[] = "MCC_getFuncPtrFromItabSecondHash64";
 class VtableImpl : public FuncOptimizeImpl {
  public:
   VtableImpl(MIRModule *mod, KlassHierarchy *kh, bool dump);
-  ~VtableImpl() {}
+  ~VtableImpl() = default;
 
   void ProcessFunc(MIRFunction *func) override;
   FuncOptimizeImpl *Clone() override {
@@ -41,7 +45,7 @@ class VtableImpl : public FuncOptimizeImpl {
   MIRModule *mirModule;
   KlassHierarchy *klassHierarchy;
   MIRFunction *mccItabFunc;
-  void ReplaceResolveInterface(StmtNode *stmt, const ResolveFuncNode *resolveNode);
+  void ReplaceResolveInterface(StmtNode &stmt, const ResolveFuncNode &resolveNode);
 };
 
 class DoVtableImpl : public ModulePhase {
@@ -52,7 +56,7 @@ class DoVtableImpl : public ModulePhase {
     return "VtableImpl";
   }
 
-  ~DoVtableImpl() {}
+  ~DoVtableImpl() = default;
 
   AnalysisResult *Run(MIRModule *mod, ModuleResultMgr *mrm) override {
     OPT_TEMPLATE(VtableImpl);

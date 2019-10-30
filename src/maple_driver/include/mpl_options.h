@@ -108,6 +108,7 @@ class MplOptions {
   bool timePhases;
   bool genMemPl;
   bool genVtableImpl;
+  bool verify;
   MplOptions()
       : optionParser(nullptr),
         options(UserOption()),
@@ -130,7 +131,8 @@ class MplOptions {
         debugFlag(false),
         timePhases(false),
         genMemPl(false),
-        genVtableImpl(false) {}
+        genVtableImpl(false),
+        verify(false) {}
   ~MplOptions() {
     if (optionParser != nullptr) {
       delete optionParser;
@@ -146,6 +148,7 @@ class MplOptions {
   ErrorCode CheckFileExits();
   void AddOption(const mapleOption::Option &option);
   void UpdateOptLevel(OptimizationLevel level);
+  ErrorCode UpdatePhaseOption(const std::string &args, const std::string &exeName);
   ErrorCode UpdateExtraOptionOpt(const std::string &args);
   ErrorCode AppendDefaultOptions(const std::string &exeName, MplOption mplOptions[], unsigned int length);
   void UpdateRunningExe(const std::string &args);

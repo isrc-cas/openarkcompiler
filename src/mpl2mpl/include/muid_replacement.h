@@ -58,7 +58,7 @@ enum RangeIdx {
 class MUIDReplacement : public FuncOptimizeImpl {
  public:
   MUIDReplacement(MIRModule *mod, KlassHierarchy *kh, bool dump);
-  ~MUIDReplacement() {}
+  ~MUIDReplacement() = default;
 
   FuncOptimizeImpl *Clone() override {
     return new (std::nothrow) MUIDReplacement(*this);
@@ -67,11 +67,11 @@ class MUIDReplacement : public FuncOptimizeImpl {
   void ProcessFunc(MIRFunction *func) override;
 
   static void SetMplMd5(MUID muid) {
-    kMplMuid = muid;
+    mplMuid = muid;
   }
 
   static MUID &GetMplMd5() {
-    return kMplMuid;
+    return mplMuid;
   }
 
  private:
@@ -90,7 +90,7 @@ class MUIDReplacement : public FuncOptimizeImpl {
   MIRSymbol *funcMuidIdxTabSym = nullptr;
   MIRSymbol *rangeTabSym = nullptr;
   MIRSymbol *funcProfileTabSym = nullptr;
-  static MUID kMplMuid;
+  static MUID mplMuid;
   std::string mplMuidStr;
   using SymIdxPair = std::pair<MIRSymbol*, uint32>;
   std::map<MUID, SymIdxPair> funcDefMap;
@@ -98,28 +98,34 @@ class MUIDReplacement : public FuncOptimizeImpl {
   std::map<MUID, SymIdxPair> funcUndefMap;
   std::map<MUID, SymIdxPair> dataUndefMap;
   std::map<MUID, uint32> defMuidIdxMap;
+  enum LazyBindingOption : uint32 {
+    kNoLazyBinding = 0,
+    kConservativeLazyBinding = 1,
+    kRadicalLazyBinding = 2
+  };
+
   void GenericTables();
   void GenericFuncDefTable();
   void GenericDataDefTable();
   void GenericUnifiedUndefTable();
   void GenericRangeTable();
-  uint32 FindIndexFromDefTable(const MIRSymbol *mirSymbol, bool isFunc);
-  uint32 FindIndexFromUndefTable(const MIRSymbol *mirSymbol, bool isFunc);
-  void ReplaceAddroffuncConst(MIRConst *&entry, uint32 fieldId, bool isVtab);
+  uint32 FindIndexFromDefTable(const MIRSymbol &mirSymbol, bool isFunc);
+  uint32 FindIndexFromUndefTable(const MIRSymbol &mirSymbol, bool isFunc);
+  void ReplaceAddroffuncConst(MIRConst *&entry, uint32 fieldID, bool isVtab);
   void ReplaceFuncTable(const std::string &name);
   void ReplaceAddrofConst(MIRConst *&entry);
   void ReplaceDataTable(const std::string &name);
-  void ReplaceDirectInvokeOrAddroffunc(MIRFunction *currentFunc, StmtNode *stmt);
-  void ReplaceDassign(MIRFunction *currentFunc, DassignNode *dassignNode);
+  void ReplaceDirectInvokeOrAddroffunc(MIRFunction &currentFunc, StmtNode &stmt);
+  void ReplaceDassign(MIRFunction &currentFunc, DassignNode &dassignNode);
   void ReplaceDreadStmt(MIRFunction *currentFunc, StmtNode *stmt);
   void ClearVtabItab(const std::string &name);
   BaseNode *ReplaceDreadExpr(MIRFunction *currentFunc, StmtNode *stmt, BaseNode *expr);
-  BaseNode *ReplaceDread(MIRFunction *currentFunc, StmtNode *stmt, BaseNode *opnd);
-  void CollectDread(MIRFunction *currentFunc, StmtNode *stmt, BaseNode *opnd);
+  BaseNode *ReplaceDread(MIRFunction &currentFunc, StmtNode *stmt, BaseNode *opnd);
+  void CollectDread(MIRFunction &currentFunc, StmtNode &stmt, BaseNode &opnd);
   void DumpMUIDFile(bool isFunc);
   void ReplaceStmts();
   void GenericGlobalRootList();
-  void CollectImplicitUndefClassInfo(StmtNode *stmt);
+  void CollectImplicitUndefClassInfo(StmtNode &stmt);
   void CollectFuncAndDataFromKlasses();
   void CollectFuncAndDataFromGlobalTab();
   void CollectFuncAndDataFromFuncList();
@@ -149,12 +155,12 @@ class MUIDReplacement : public FuncOptimizeImpl {
 #define __MRT_MAGIC_PASTE(x, y) __MRT_MAGIC_PASTE2(x, y)
 #define __MRT_MAGIC_PASTE2(x, y) x##y
 #define CLASS_PREFIX(classname) TO_STR(__MRT_MAGIC_PASTE(CLASSINFO_PREFIX, classname)),
-  const std::unordered_set<std::string> kPreloadedClassInfo = {
+  const std::unordered_set<std::string> preloadedClassInfo = {
   };
 #undef CLASS_PREFIX
 #undef __MRT_MAGIC_PASTE2
 #undef __MRT_MAGIC_PASTE
-  const std::unordered_set<std::string> kReflectionList = {
+  const std::unordered_set<std::string> reflectionList = {
   };
 };
 
@@ -162,7 +168,7 @@ class DoMUIDReplacement : public ModulePhase {
  public:
   explicit DoMUIDReplacement(ModulePhaseID id) : ModulePhase(id) {}
 
-  ~DoMUIDReplacement() {}
+  ~DoMUIDReplacement() = default;
 
   std::string PhaseName() const override {
     return "MUIDReplacement";

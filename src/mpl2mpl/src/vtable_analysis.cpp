@@ -29,14 +29,15 @@ VtableAnalysis::VtableAnalysis(MIRModule *mod, KlassHierarchy *kh, bool dump) : 
   voidPtrType = GlobalTables::GetTypeTable().GetVoidPtr();
   // zeroConst and oneConst are shared amony itab entries. It is safe to share them because
   // they are never removed by anybody.
-  zeroConst = GetModule()->GetMemPool()->New<MIRIntConst>(0, voidPtrType);
-  oneConst = GetModule()->GetMemPool()->New<MIRIntConst>(1, voidPtrType);
+  zeroConst = GetMIRModule().GetMemPool()->New<MIRIntConst>(0, *voidPtrType);
+  oneConst = GetMIRModule().GetMemPool()->New<MIRIntConst>(1, *voidPtrType);
   for (Klass *klass : klassHierarchy->GetTopoSortedKlasses()) {
-    GenVtableList(klass);
+    ASSERT(klass != nullptr, "null ptr check!");
+    GenVtableList(*klass);
     if (klass->IsClass() && klass->GetMIRStructType()->IsLocal()) {
       // We generate itable/vtable definition in the same place where the class is defined
-      GenVtableDefinition(klass);
-      GenItableDefinition(klass);
+      GenVtableDefinition(*klass);
+      GenItableDefinition(*klass);
     }
     if (trace) {
       DumpVtableList(klass);
@@ -44,62 +45,65 @@ VtableAnalysis::VtableAnalysis(MIRModule *mod, KlassHierarchy *kh, bool dump) : 
   }
 }
 
-bool VtableAnalysis::IsVtableCandidate(const MIRFunction *func) const {
-  return (func->GetAttr(FUNCATTR_virtual) && !func->GetAttr(FUNCATTR_private) && !func->GetAttr(FUNCATTR_static));
+bool VtableAnalysis::IsVtableCandidate(const MIRFunction &func) const {
+  return (func.GetAttr(FUNCATTR_virtual) && !func.GetAttr(FUNCATTR_private) && !func.GetAttr(FUNCATTR_static));
 }
 
 // Return true if virtual functions can be set override relationship cross package
-bool VtableAnalysis::CheckOverrideForCrossPackage(const MIRFunction *baseMethod, const MIRFunction *currMethod) const {
-  const std::string &baseClassName = baseMethod->GetBaseClassName();
+bool VtableAnalysis::CheckOverrideForCrossPackage(const MIRFunction &baseMethod, const MIRFunction &currMethod) const {
+  const std::string &baseClassName = baseMethod.GetBaseClassName();
   size_t basePos = baseClassName.rfind(NameMangler::kPackageNameSplitterStr);
   std::string basePackageName = (basePos != std::string::npos) ? baseClassName.substr(0, basePos) : "";
-  const std::string &currClassName = currMethod->GetBaseClassName();
+  const std::string &currClassName = currMethod.GetBaseClassName();
   size_t currPos = currClassName.rfind(NameMangler::kPackageNameSplitterStr);
   std::string currPackageName = (currPos != std::string::npos) ? currClassName.substr(0, currPos) : "";
   // For the corss package inheritance, only if the base func is declared
   // as either 'public' or 'protected', we shall set override relationship.
-  return ((currPackageName == basePackageName) || baseMethod->GetAttr(FUNCATTR_public) ||
-          baseMethod->GetAttr(FUNCATTR_protected));
+  return ((currPackageName == basePackageName) || baseMethod.GetAttr(FUNCATTR_public) ||
+          baseMethod.GetAttr(FUNCATTR_protected));
 }
 
 // If the method is not in method_table yet, add it in, otherwise update it.
 // Note: the method to add should already pass VtableCandidate test
-void VtableAnalysis::AddMethodToTable(MethodPtrVector &methodTable, MethodPair *methodpair) {
-  MIRFunction *method = builder->GetFunctionFromStidx(methodpair->first);
-  GStrIdx stridx = method->GetBaseFuncNameWithTypeStrIdx();
+void VtableAnalysis::AddMethodToTable(MethodPtrVector &methodTable, MethodPair &methodpair) {
+  MIRFunction *method = builder->GetFunctionFromStidx(methodpair.first);
+  ASSERT(method != nullptr, "null ptr check!");
+  GStrIdx strIdx = method->GetBaseFuncNameWithTypeStrIdx();
   for (size_t i = 0; i < methodTable.size(); i++) {
     MIRFunction *currFunc = builder->GetFunctionFromStidx(methodTable[i]->first);
-    GStrIdx currStridx = currFunc->GetBaseFuncNameWithTypeStrIdx();
-    if (stridx == currStridx) {
-      if (CheckOverrideForCrossPackage(currFunc, method)) {
+    ASSERT(currFunc != nullptr, "null ptr check!");
+    GStrIdx currStrIdx = currFunc->GetBaseFuncNameWithTypeStrIdx();
+    if (strIdx == currStrIdx) {
+      if (CheckOverrideForCrossPackage(*currFunc, *method)) {
         // only update when it's not an abstract method
         if (!method->IsAbstract()) {
-          methodTable[i] = methodpair;
+          methodTable[i] = &methodpair;
         }
         return;
       }
     }
   }
-  methodTable.push_back(methodpair);
+  methodTable.push_back(&methodpair);
 }
 
-void VtableAnalysis::GenVtableList(const Klass *klass) {
-  if (klass->IsInterface()) {
-    MIRInterfaceType *iType = klass->GetMIRInterfaceType();
+void VtableAnalysis::GenVtableList(const Klass &klass) {
+  if (klass.IsInterface()) {
+    MIRInterfaceType *iType = klass.GetMIRInterfaceType();
     // add in methods from parent interfaces, note interfaces can declare/define same methods
-    for (const Klass *parentKlass : klass->GetSuperKlasses()) {
+    for (const Klass *parentKlass : klass.GetSuperKlasses()) {
       MIRInterfaceType *parentInterfaceType = parentKlass->GetMIRInterfaceType();
       for (MethodPair *methodPair : parentInterfaceType->GetVTableMethods()) {
-        AddMethodToTable(iType->GetVTableMethods(), methodPair);
+        ASSERT(methodPair != nullptr, "null ptr check!");
+        AddMethodToTable(iType->GetVTableMethods(), *methodPair);
       }
     }
     // add in methods from this interface, note it can override methods of parents
     for (MethodPair &methodPair : iType->GetMethods()) {
-      AddMethodToTable(iType->GetVTableMethods(), &methodPair);
+      AddMethodToTable(iType->GetVTableMethods(), methodPair);
     }
   } else {  // it's a class
-    MIRClassType *curType = klass->GetMIRClassType();
-    Klass *superKlass = klass->GetSuperKlass();
+    MIRClassType *curType = klass.GetMIRClassType();
+    Klass *superKlass = klass.GetSuperKlass();
     // prepare vtable_methods
     // first is vtable from parents. since it's single inheritance, we copy it directly
     if (superKlass != nullptr) {
@@ -108,8 +112,8 @@ void VtableAnalysis::GenVtableList(const Klass *klass) {
     }
     // vtable from implemented interfaces, need to merge in. both default or none-default
     // Note, all interface methods are also virtual methods, need to be in vtable too.
-    for (TyIdx const &tyIdx : curType->GetInerfaceImplemented()) {
-      MIRInterfaceType *iType = static_cast<MIRInterfaceType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx));
+    for (TyIdx const &tyIdx : curType->GetInterfaceImplemented()) {
+      auto *iType = static_cast<MIRInterfaceType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx));
       for (MethodPair *methodPair : iType->GetVTableMethods()) {
         MIRFunction *method = builder->GetFunctionFromStidx(methodPair->first);
         GStrIdx strIdx = method->GetBaseFuncNameWithTypeStrIdx();
@@ -137,8 +141,9 @@ void VtableAnalysis::GenVtableList(const Klass *klass) {
     // then methods defined in this class
     for (MethodPair &methodpair : curType->GetMethods()) {
       MIRFunction *curMethod = builder->GetFunctionFromStidx(methodpair.first);
-      if (IsVtableCandidate(curMethod)) {
-        AddMethodToTable(curType->GetVTableMethods(), &methodpair);
+      ASSERT(curMethod != nullptr, "null ptr check!");
+      if (IsVtableCandidate(*curMethod)) {
+        AddMethodToTable(curType->GetVTableMethods(), methodpair);
       }
       // Optimization: mark private methods as local
       if (curType->IsLocal() && curMethod->IsPrivate() && !curMethod->IsConstructor()) {
@@ -148,18 +153,21 @@ void VtableAnalysis::GenVtableList(const Klass *klass) {
     // Create initial cached vtable mapping
     for (size_t i = 0; i < curType->GetVTableMethods().size(); i++) {
       MIRFunction *curMethod = builder->GetFunctionFromStidx(curType->GetVTableMethods()[i]->first);
+      ASSERT(curMethod != nullptr, "null ptr check!");
       puidxToVtabIndex[curMethod->GetPuidx()] = i;
     }
   }
 }
 
-void VtableAnalysis::GenVtableDefinition(const Klass *klass) {
-  MIRStructType *curType = klass->GetMIRStructType();
-  MIRAggConst *newconst = GetModule()->GetMemPool()->New<MIRAggConst>(GetModule(), voidPtrType);
+void VtableAnalysis::GenVtableDefinition(const Klass &klass) {
+  MIRStructType *curType = klass.GetMIRStructType();
+  MIRAggConst *newconst = GetMIRModule().GetMemPool()->New<MIRAggConst>(GetMIRModule(), *voidPtrType);
+  ASSERT(newconst != nullptr, "null ptr check!");
   for (MethodPair *methodPair : curType->GetVTableMethods()) {
     MIRFunction *vtabMethod = builder->GetFunctionFromStidx(methodPair->first);
-    AddroffuncNode *addrofFuncNode = builder->CreateExprAddroffunc(vtabMethod->GetPuidx(), GetModule()->GetMemPool());
-    MIRConst *constNode = GetModule()->GetMemPool()->New<MIRAddroffuncConst>(addrofFuncNode->GetPUIdx(), voidPtrType);
+    ASSERT(vtabMethod != nullptr, "null ptr check!");
+    AddroffuncNode *addrofFuncNode = builder->CreateExprAddroffunc(vtabMethod->GetPuidx(), GetMIRModule().GetMemPool());
+    MIRConst *constNode = GetMIRModule().GetMemPool()->New<MIRAddroffuncConst>(addrofFuncNode->GetPUIdx(), *voidPtrType);
     newconst->GetConstVec().push_back(constNode);
   }
   // We also need to generate vtable and itable even if the class does not
@@ -173,30 +181,31 @@ void VtableAnalysis::GenVtableDefinition(const Klass *klass) {
   if (newconst->GetConstVec().empty()) {
     newconst->GetConstVec().push_back(zeroConst);
   }
-  GenTableSymbol(VTAB_PREFIX_STR, klass->GetKlassName(), newconst);
+  GenTableSymbol(VTAB_PREFIX_STR, klass.GetKlassName(), *newconst);
 }
 
-std::string VtableAnalysis::DecodeBaseNameWithType(const MIRFunction *func) {
-  std::string baseName = NameMangler::DecodeName(func->GetBaseFuncName().c_str());
-  std::string signatureName = NameMangler::DecodeName(func->GetSignature().c_str());
+std::string VtableAnalysis::DecodeBaseNameWithType(const MIRFunction &func) {
+  std::string baseName = NameMangler::DecodeName(func.GetBaseFuncName().c_str());
+  std::string signatureName = NameMangler::DecodeName(func.GetSignature().c_str());
   ReflectionAnalysis::ConvertMethodSig(signatureName);
   std::string baseNameWithType = baseName + "|" + signatureName;
   return baseNameWithType;
 }
 
-void VtableAnalysis::GenItableDefinition(const Klass *klass) {
-  MIRStructType *curType = klass->GetMIRStructType();
+void VtableAnalysis::GenItableDefinition(const Klass &klass) {
+  MIRStructType *curType = klass.GetMIRStructType();
   std::set<GStrIdx> signatureVisited;
   std::vector<MIRFunction*> firstItabVec(kItabFirstHashSize, nullptr);
   std::vector<bool> firstConflictFlag(kItabFirstHashSize, false);
   std::vector<MIRFunction*> firstConflictList;
   bool itabContainsMethod = false;
-  for (Klass *implInterface : klass->GetImplInterfaces()) {
+  for (Klass *implInterface : klass.GetImplInterfaces()) {
     CHECK_FATAL(implInterface->IsInterface(), "implInterface must be interface");
     MIRInterfaceType *interfaceType = implInterface->GetMIRInterfaceType();
     for (MethodPair &methodPair : interfaceType->GetMethods()) {
       MIRFunction *interfaceMethod = builder->GetFunctionFromStidx(methodPair.first);
-      int64 hashCode = GetHashIndex(DecodeBaseNameWithType(interfaceMethod).c_str());
+      ASSERT(interfaceMethod != nullptr, "null ptr check!");
+      int64 hashCode = GetHashIndex(DecodeBaseNameWithType(*interfaceMethod).c_str());
       GStrIdx interfaceMethodStridx = interfaceMethod->GetBaseFuncNameWithTypeStrIdx();
       if (signatureVisited.find(interfaceMethodStridx) == signatureVisited.end()) {
         signatureVisited.insert(interfaceMethodStridx);
@@ -214,8 +223,8 @@ void VtableAnalysis::GenItableDefinition(const Klass *klass) {
           break;
         }
       }
-      CHECK_FATAL(vtabMethod, "Interface method %s is not implemented in class %s", interfaceMethod->GetName().c_str(),
-                  klass->GetKlassName().c_str());
+      CHECK_FATAL(vtabMethod != nullptr, "Interface method %s is not implemented in class %s",
+                  interfaceMethod->GetName().c_str(), klass.GetKlassName().c_str());
       if (!vtabMethod->IsAbstract()) {
         itabContainsMethod = true;
         if (!firstItabVec[hashCode] && !firstConflictFlag[hashCode]) {
@@ -241,7 +250,8 @@ void VtableAnalysis::GenItableDefinition(const Klass *klass) {
   std::vector<MIRFunction*> secondConflictList;
   uint32 count = 0;
   for (MIRFunction *func : firstConflictList) {
-    uint32 secondHashCode = GetSecondHashIndex(DecodeBaseNameWithType(func).c_str());
+    ASSERT(func != nullptr, "null ptr check!");
+    uint32 secondHashCode = GetSecondHashIndex(DecodeBaseNameWithType(*func).c_str());
     if (!secondItab[secondHashCode] && !secondConflictFlag[secondHashCode]) {
       secondItab[secondHashCode] = func;
       count++;
@@ -265,29 +275,30 @@ void VtableAnalysis::GenItableDefinition(const Klass *klass) {
     }
   }
   // Create the first-level itable, which is directly accessed as an array
-  MIRAggConst *firstItabEmitArray = GetModule()->GetMemPool()->New<MIRAggConst>(GetModule(), voidPtrType);
+  MIRAggConst *firstItabEmitArray = GetMIRModule().GetMemPool()->New<MIRAggConst>(GetMIRModule(), *voidPtrType);
+  ASSERT(firstItabEmitArray != nullptr, "null ptr check!");
   for (MIRFunction *func : firstItabVec) {
     if (func != nullptr) {
       firstItabEmitArray->GetConstVec().push_back(
-          GetModule()->GetMemPool()->New<MIRAddroffuncConst>(func->GetPuidx(), voidPtrType));
+        GetMIRModule().GetMemPool()->New<MIRAddroffuncConst>(func->GetPuidx(), *voidPtrType));
     } else {
       firstItabEmitArray->GetConstVec().push_back(zeroConst);
     }
   }
   // initialize conflict solution array
   if (count != 0) {
-    MIRAggConst *secondItabEmitArray = GetModule()->GetMemPool()->New<MIRAggConst>(GetModule(), voidPtrType);
+    MIRAggConst *secondItabEmitArray = GetMIRModule().GetMemPool()->New<MIRAggConst>(GetMIRModule(), *voidPtrType);
     // remember count in secondItabVec
-    secondItabEmitArray->GetConstVec().push_back(GetModule()->GetMemPool()->New<MIRIntConst>(count, voidPtrType));
+    secondItabEmitArray->GetConstVec().push_back(GetMIRModule().GetMemPool()->New<MIRIntConst>(count, *voidPtrType));
     secondItabEmitArray->GetConstVec().push_back(oneConst);  // padding
     for (uint32 i = 0; i < kItabSecondHashSize; i++) {
       if (!secondItab[i] && !secondConflictFlag[i]) {
         continue;
       } else {
-        secondItabEmitArray->GetConstVec().push_back(GetModule()->GetMemPool()->New<MIRIntConst>(i, voidPtrType));
+        secondItabEmitArray->GetConstVec().push_back(GetMIRModule().GetMemPool()->New<MIRIntConst>(i, *voidPtrType));
         if (secondItab[i]) {
           secondItabEmitArray->GetConstVec().push_back(
-              GetModule()->GetMemPool()->New<MIRAddroffuncConst>(secondItab[i]->GetPuidx(), voidPtrType));
+            GetMIRModule().GetMemPool()->New<MIRAddroffuncConst>(secondItab[i]->GetPuidx(), *voidPtrType));
         } else {
           // it measn it was conflict again in the second hash
           secondItabEmitArray->GetConstVec().push_back(oneConst);
@@ -295,39 +306,41 @@ void VtableAnalysis::GenItableDefinition(const Klass *klass) {
       }
     }
     for (MIRFunction *func : secondConflictList) {
-      const std::string &signatureName = DecodeBaseNameWithType(func);
+      ASSERT(func !=  nullptr, "null ptr check!");
+      const std::string &signatureName = DecodeBaseNameWithType(*func);
       uint32 nameIdx = ReflectionAnalysis::FindOrInsertRepeatString(signatureName);
-      secondItabEmitArray->GetConstVec().push_back(GetModule()->GetMemPool()->New<MIRIntConst>(nameIdx, voidPtrType));
+      secondItabEmitArray->GetConstVec().push_back(GetMIRModule().GetMemPool()->New<MIRIntConst>(nameIdx, *voidPtrType));
       secondItabEmitArray->GetConstVec().push_back(
-          GetModule()->GetMemPool()->New<MIRAddroffuncConst>(func->GetPuidx(), voidPtrType));
+        GetMIRModule().GetMemPool()->New<MIRAddroffuncConst>(func->GetPuidx(), *voidPtrType));
     }
     // Create the second-level itable, in which hashcode is looked up by binary searching
-    GenTableSymbol(ITAB_CONFLICT_PREFIX_STR, klass->GetKlassName(), secondItabEmitArray);
+    GenTableSymbol(ITAB_CONFLICT_PREFIX_STR, klass.GetKlassName(), *secondItabEmitArray);
     // push the conflict symbol to the first-level itable
     StIdx symIdx = GlobalTables::GetGsymTable().GetStIdxFromStrIdx(
-        GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(ITAB_CONFLICT_PREFIX_STR + klass->GetKlassName()));
-    firstItabEmitArray->GetConstVec().push_back(GetModule()->GetMemPool()->New<MIRAddrofConst>(symIdx, 0, voidPtrType));
+        GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(ITAB_CONFLICT_PREFIX_STR + klass.GetKlassName()));
+    firstItabEmitArray->GetConstVec().push_back(GetMIRModule().GetMemPool()->New<MIRAddrofConst>(symIdx, 0, *voidPtrType));
   }
-  GenTableSymbol(ITAB_PREFIX_STR, klass->GetKlassName(), firstItabEmitArray);
+  GenTableSymbol(ITAB_PREFIX_STR, klass.GetKlassName(), *firstItabEmitArray);
 }
 
-void VtableAnalysis::GenTableSymbol(const std::string &prefix, const std::string klassName, MIRAggConst *newconst) {
-  size_t arraySize = newconst->GetConstVec().size();
-  MIRArrayType *arrayType = GlobalTables::GetTypeTable().GetOrCreateArrayType(voidPtrType, arraySize);
+void VtableAnalysis::GenTableSymbol(const std::string &prefix, const std::string klassName, MIRAggConst &newconst) {
+  size_t arraySize = newconst.GetConstVec().size();
+  MIRArrayType &arrayType = *GlobalTables::GetTypeTable().GetOrCreateArrayType(*voidPtrType, arraySize);
   MIRSymbol *vtabSt = builder->CreateGlobalDecl((prefix + klassName).c_str(), arrayType);
   if (klassName == NameMangler::GetInternalNameLiteral(NameMangler::kJavaLangObjectStr)) {
     vtabSt->SetStorageClass(kScGlobal);
   } else {
     vtabSt->SetStorageClass(kScFstatic);
   }
-  vtabSt->SetKonst(newconst);
+  vtabSt->SetKonst(&newconst);
 }
 
 void VtableAnalysis ::DumpVtableList(const Klass *klass) const {
-  LogInfo::MapleLogger() << "=========" << klass->GetKlassName() << "========" << std::endl;
+  LogInfo::MapleLogger() << "=========" << klass->GetKlassName() << "========\n";
   for (MethodPair *vtableMethod : klass->GetMIRStructType()->GetVTableMethods()) {
     MIRFunction *method = builder->GetFunctionFromStidx(vtableMethod->first);
-    LogInfo::MapleLogger() << method->GetName() << std::endl;
+    ASSERT(method != nullptr, "null ptr check!");
+    LogInfo::MapleLogger() << method->GetName() << "\n";
   }
 }
 
@@ -335,26 +348,26 @@ void VtableAnalysis::ProcessFunc(MIRFunction *func) {
   if (func->IsEmpty()) {
     return;
   }
-  SetCurrentFunction(func);
+  SetCurrentFunction(*func);
   StmtNode *stmt = func->GetBody()->GetFirst();
   StmtNode *next = nullptr;
   while (stmt != nullptr) {
     next = stmt->GetNext();
     switch (stmt->GetOpCode()) {
       case OP_virtualcallassigned: {
-        ReplaceVirtualInvoke(static_cast<CallNode*>(stmt));
+        ReplaceVirtualInvoke(*(static_cast<CallNode*>(stmt)));
         break;
       }
       case OP_interfacecallassigned: {
-        ReplaceInterfaceInvoke(static_cast<CallNode*>(stmt));
+        ReplaceInterfaceInvoke(*(static_cast<CallNode*>(stmt)));
         break;
       }
       case OP_superclasscallassigned: {
-        ReplaceSuperclassInvoke(static_cast<CallNode*>(stmt));
+        ReplaceSuperclassInvoke(*(static_cast<CallNode*>(stmt)));
         break;
       }
       case OP_polymorphiccallassigned: {
-        ReplacePolymorphicInvoke(static_cast<CallNode*>(stmt));
+        ReplacePolymorphicInvoke(*(static_cast<CallNode*>(stmt)));
         break;
       }
       default:
@@ -364,10 +377,10 @@ void VtableAnalysis::ProcessFunc(MIRFunction *func) {
   }
 }
 
-void VtableAnalysis::ReplaceSuperclassInvoke(CallNode *stmt) {
+void VtableAnalysis::ReplaceSuperclassInvoke(CallNode &stmt) {
   // Because the virtual method may be inherited from its parent, we need to find
   // the actual method target.
-  MIRFunction *callee = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(stmt->GetPUIdx());
+  MIRFunction *callee = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(stmt.GetPUIdx());
   Klass *klass = klassHierarchy->GetKlassFromFunc(callee);
 
   CHECK_FATAL(klass != nullptr, "Klass not found");
@@ -381,10 +394,10 @@ void VtableAnalysis::ReplaceSuperclassInvoke(CallNode *stmt) {
       }
     }
   }
-  if (!cands || cands->size() == 0) {
+  if (cands == nullptr || cands->size() == 0) {
     if (klass->IsClass() || klass->IsInterface()) {
-      LogInfo::MapleLogger() << "warning: func " << callee->GetName() << " is not found in SuperInvoke!" << std::endl;
-      stmt->SetOpCode(OP_callassigned);
+      LogInfo::MapleLogger() << "warning: func " << callee->GetName() << " is not found in SuperInvoke!\n";
+      stmt.SetOpCode(OP_callassigned);
       return;
     }
   }
@@ -392,35 +405,38 @@ void VtableAnalysis::ReplaceSuperclassInvoke(CallNode *stmt) {
               "Dependency Error: function %s cannot be found in %s or any of its superclasses/interfaces",
               callee->GetBaseFuncNameWithType().c_str(), klass->GetKlassName().c_str());
   MIRFunction *actualMIRFunc = cands->at(0);
-  CHECK_FATAL(actualMIRFunc, "Can not find the implementation of %s", callee->GetName().c_str());
-  stmt->SetOpCode(OP_callassigned);
-  stmt->SetPUIdx(actualMIRFunc->GetPuidx());
-  GetModule()->addSuperCall(actualMIRFunc->GetName());
+  CHECK_FATAL(actualMIRFunc != nullptr, "Can not find the implementation of %s", callee->GetName().c_str());
+  stmt.SetOpCode(OP_callassigned);
+  stmt.SetPUIdx(actualMIRFunc->GetPuidx());
+  GetMIRModule().addSuperCall(actualMIRFunc->GetName());
 }
 
-void VtableAnalysis::ReplacePolymorphicInvoke(CallNode *stmt) {
+void VtableAnalysis::ReplacePolymorphicInvoke(CallNode &stmt) {
   IntrinsiccallNode *intrinCall =
-      GetModule()->CurFuncCodeMemPool()->New<IntrinsiccallNode>(GetModule(), OP_xintrinsiccallassigned);
+    GetMIRModule().CurFuncCodeMemPool()->New<IntrinsiccallNode>(GetMIRModule(), OP_xintrinsiccallassigned);
   intrinCall->SetIntrinsic(INTRN_JAVA_POLYMORPHIC_CALL);
-  intrinCall->SetNumOpnds(stmt->GetNumOpnds());
-  intrinCall->SetReturnVec(stmt->GetReturnVec());
-  intrinCall->SetNOpnd(stmt->GetNopnd());
-  currFunc->GetBody()->ReplaceStmt1WithStmt2(stmt, intrinCall);
+  intrinCall->SetNumOpnds(stmt.GetNumOpnds());
+  intrinCall->SetReturnVec(stmt.GetReturnVec());
+  intrinCall->SetNOpnd(stmt.GetNopnd());
+  currFunc->GetBody()->ReplaceStmt1WithStmt2(&stmt, intrinCall);
 }
 
 BaseNode *VtableAnalysis::GenVtabItabBaseAddr(BaseNode *obj, bool isVirtual) {
-  BaseNode *classInfoAddress = ReflectionAnalysis::GenClassInfoAddr(obj, builder);
-  MIRStructType *classMetadataType = static_cast<MIRStructType*>(
+  ASSERT(builder != nullptr, "null ptr check!");
+  BaseNode *classInfoAddress = ReflectionAnalysis::GenClassInfoAddr(obj, *builder);
+  auto *classMetadataType = static_cast<MIRStructType*>(
       GlobalTables::GetTypeTable().GetTypeFromTyIdx(ReflectionAnalysis::GetClassMetaDataTyIdx()));
-  return builder->CreateExprIread(voidPtrType, GlobalTables::GetTypeTable().GetOrCreatePointerType(classMetadataType),
+  return builder->CreateExprIread(*voidPtrType,
+                                  *GlobalTables::GetTypeTable().GetOrCreatePointerType(*classMetadataType),
                                   (isVirtual ? KLASS_VTAB_FIELDID : KLASS_ITAB_FIELDID), classInfoAddress);
 }
 
 
-void VtableAnalysis::ReplaceVirtualInvoke(CallNode *stmt) {
-  MIRFunction *callee = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(stmt->GetPUIdx());
+void VtableAnalysis::ReplaceVirtualInvoke(CallNode &stmt) {
+  MIRFunction *callee = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(stmt.GetPUIdx());
+  ASSERT(callee != nullptr, "null ptr check!");
   CHECK_FATAL(callee->GetParamSize() != 0, "container check");
-  MIRPtrType *firstFormalArgType = static_cast<MIRPtrType*>(callee->GetNthParamType(0));
+  auto *firstFormalArgType = static_cast<MIRPtrType*>(callee->GetNthParamType(0));
   MIRType *pointedType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(firstFormalArgType->GetPointedTyIdx());
   MIRStructType *structType = nullptr;
   if (pointedType->GetKind() == kTypeJArray) {
@@ -432,12 +448,14 @@ void VtableAnalysis::ReplaceVirtualInvoke(CallNode *stmt) {
     structType = klassFromFuncDependCallee->GetMIRStructType();
   }
   size_t entryOffset = SIZE_MAX;
-  if (puidxToVtabIndex.find(stmt->GetPUIdx()) != puidxToVtabIndex.end() && puidxToVtabIndex[stmt->GetPUIdx()] >= 0) {
-    entryOffset = puidxToVtabIndex[stmt->GetPUIdx()];
+  if (puidxToVtabIndex.find(stmt.GetPUIdx()) != puidxToVtabIndex.end() && puidxToVtabIndex[stmt.GetPUIdx()] >= 0) {
+    entryOffset = puidxToVtabIndex[stmt.GetPUIdx()];
   } else {
     GStrIdx calleeStridx = callee->GetBaseFuncNameWithTypeStrIdx();
+    ASSERT(structType != nullptr, "null ptr check!");
     for (size_t id1 = 0; id1 < structType->GetVTableMethods().size(); id1++) {
       MIRFunction *vtableMethod = builder->GetFunctionFromStidx(structType->GetVTableMethods()[id1]->first);
+      ASSERT(vtableMethod != nullptr, "null ptr check!");
       if (calleeStridx == vtableMethod->GetBaseFuncNameWithTypeStrIdx()) {
         entryOffset = id1;
         puidxToVtabIndex[callee->GetPuidx()] = id1;
@@ -449,28 +467,29 @@ void VtableAnalysis::ReplaceVirtualInvoke(CallNode *stmt) {
                 callee->GetName().c_str(), currFunc->GetName().c_str());
   }
   BaseNode *offsetNode = builder->CreateIntConst(entryOffset * kTabEntrySize, PTY_u32);
-  CHECK_FATAL(!stmt->GetNopnd().empty(), "container check");
-  BaseNode *tabBaseAddress = GenVtabItabBaseAddr(stmt->GetNopndAt(0), true);
+  CHECK_FATAL(!stmt.GetNopnd().empty(), "container check");
+  BaseNode *tabBaseAddress = GenVtabItabBaseAddr(stmt.GetNopndAt(0), true);
   BaseNode *addrNode =
-      builder->CreateExprBinary(OP_add, GlobalTables::GetTypeTable().GetPtr(), tabBaseAddress, offsetNode);
+      builder->CreateExprBinary(OP_add, *GlobalTables::GetTypeTable().GetPtr(), tabBaseAddress, offsetNode);
   BaseNode *readFuncPtr = builder->CreateExprIread(
-      GlobalTables::GetTypeTable().GetCompactPtr(),
-      GlobalTables::GetTypeTable().GetOrCreatePointerType(GlobalTables::GetTypeTable().GetCompactPtr()), 0, addrNode);
-  stmt->SetOpCode(OP_virtualicallassigned);
-  stmt->GetNopnd().insert(stmt->GetNopnd().begin(), readFuncPtr);
-  stmt->SetNumOpnds(stmt->GetNumOpnds() + 1);
+      *GlobalTables::GetTypeTable().GetCompactPtr(),
+      *GlobalTables::GetTypeTable().GetOrCreatePointerType(*GlobalTables::GetTypeTable().GetCompactPtr()), 0, addrNode);
+  stmt.SetOpCode(OP_virtualicallassigned);
+  stmt.GetNopnd().insert(stmt.GetNopnd().begin(), readFuncPtr);
+  stmt.SetNumOpnds(stmt.GetNumOpnds() + 1);
 }
 
 
-void VtableAnalysis::ReplaceInterfaceInvoke(CallNode *stmt) {
-  CHECK_FATAL(stmt->GetNopnd().empty() == false, "container check");
-  BaseNode *tabBaseAddress = GenVtabItabBaseAddr(stmt->GetNopndAt(0), false);
+void VtableAnalysis::ReplaceInterfaceInvoke(CallNode &stmt) {
+  CHECK_FATAL(stmt.GetNopnd().empty() == false, "container check");
+  BaseNode *tabBaseAddress = GenVtabItabBaseAddr(stmt.GetNopndAt(0), false);
   MemPool *currentFuncMp = builder->GetCurrentFuncCodeMp();
+  ASSERT(currentFuncMp != nullptr, "null ptr check!");
   ResolveFuncNode *resolveNode = currentFuncMp->New<ResolveFuncNode>(
-      OP_resolveinterfacefunc, GlobalTables::GetTypeTable().GetCompactPtr()->GetPrimType(), stmt->GetPUIdx(),
+      OP_resolveinterfacefunc, GlobalTables::GetTypeTable().GetCompactPtr()->GetPrimType(), stmt.GetPUIdx(),
       tabBaseAddress, builder->GetConstUInt32(0));
-  stmt->SetOpCode(OP_interfaceicallassigned);
-  stmt->GetNopnd().insert(stmt->GetNopnd().begin(), resolveNode);
-  stmt->SetNumOpnds(stmt->GetNumOpnds() + 1);
+  stmt.SetOpCode(OP_interfaceicallassigned);
+  stmt.GetNopnd().insert(stmt.GetNopnd().begin(), resolveNode);
+  stmt.SetNumOpnds(stmt.GetNumOpnds() + 1);
 }
 }  // namespace maple

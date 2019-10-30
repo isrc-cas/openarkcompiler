@@ -224,14 +224,14 @@ class BB {
   void SetFirstMe(MeStmt *stmt);
   void SetLastMe(MeStmt *stmt);
   bool IsInList(const MapleVector<BB*> &bbList) const;
-  bool IsPredBB(const BB *bb) const {
+  bool IsPredBB(const BB &bb) const {
     // if this is a pred of bb return true;
     // otherwise return false;
-    return IsInList(bb->pred);
+    return IsInList(bb.pred);
   }
 
-  bool IsSuccBB(const BB *bb) const {
-    return IsInList(bb->succ);
+  bool IsSuccBB(const BB &bb) const {
+    return IsInList(bb.succ);
   }
 
   void AddSuccBB(BB *succPara) {
@@ -408,6 +408,49 @@ class BB {
   uint32 attributes;
   StmtNodes stmtNodeList;
   MeStmts meStmtList;
+};
+class SCCOfBBs {
+ public:
+  SCCOfBBs(uint32 index, BB *bb, MapleAllocator *alloc)
+      : id(index),
+        entry(bb),
+        bbs(alloc->Adapter()),
+        predSCC(std::less<SCCOfBBs*>(), alloc->Adapter()),
+        succSCC(std::less<SCCOfBBs*>(), alloc->Adapter()) {}
+  void Dump();
+  void Verify(MapleVector<SCCOfBBs*> &sccOfBB);
+  void SetUp(MapleVector<SCCOfBBs*> &sccOfBB);
+  bool HasCycle() const;
+  void AddBBNode(BB *bb) {
+    bbs.push_back(bb);
+  }
+  void Clear() {
+    bbs.clear();
+  }
+  uint32 GetID() const {
+    return id;
+  }
+  const MapleVector<BB*> &GetBBs() const {
+    return bbs;
+  }
+  const MapleSet<SCCOfBBs*> &GetSucc() const {
+    return succSCC;
+  }
+  const MapleSet<SCCOfBBs*> &GetPred() const {
+    return predSCC;
+  }
+  bool HasPred() const {
+    return (predSCC.size() != 0);
+  }
+  BB *GetEntry() {
+    return entry;
+  }
+ private:
+  uint32 id;
+  BB *entry;
+  MapleVector<BB*> bbs;
+  MapleSet<SCCOfBBs*> predSCC;
+  MapleSet<SCCOfBBs*> succSCC;
 };
 }  // namespace maple
 
