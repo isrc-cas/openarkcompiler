@@ -30,13 +30,13 @@ class DoKlassHierarchy : public ModulePhase {
     return "classhierarchy";
   }
 
-  virtual ~DoKlassHierarchy(){};
+  virtual ~DoKlassHierarchy() {};
 };
 
 class ModulePhaseManager : public PhaseManager {
  public:
   ModulePhaseManager(MemPool *memPool, MIRModule &mod, ModuleResultMgr *mrm = nullptr)
-      : PhaseManager(memPool, "modulephase"), mirModule(mod) {
+      : PhaseManager(*memPool, "modulephase"), mirModule(mod) {
     if (mrm != nullptr) {
       arModuleMgr = mrm;
     } else {

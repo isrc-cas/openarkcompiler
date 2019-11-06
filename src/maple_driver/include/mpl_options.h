@@ -20,6 +20,7 @@
 #include <string>
 #include <tuple>
 #include <vector>
+#include <memory>
 #include <unordered_set>
 #include <unordered_map>
 #include "file_utils.h"
@@ -37,9 +38,50 @@ enum InputFileType {
 };
 
 enum OptimizationLevel { kO0, kO1, kO2 };
+enum RunMode { kAutoRun, kCustomRun, kUnkownRun };
 
 class MplOption {
  public:
+  MplOption(const std::string &key, const std::string &value, const std::string &connectSymbol, bool isAppend,
+            const std::string &appendSplit, bool needRootPath = false)
+      : key(key),
+        value(value),
+        connectSymbol(connectSymbol),
+        isAppend(isAppend),
+        appendSplit(appendSplit),
+        needRootPath(needRootPath) {
+    CHECK_FATAL(!key.empty(), "MplOption got an empty key.");
+  }
+
+  const std::string &GetKey() const {
+    return key;
+  }
+
+  const std::string &GetValue() const {
+    return value;
+  }
+
+  void SetValue(std::string val) {
+    value = val;
+  }
+
+  const std::string &GetconnectSymbol() const {
+    return connectSymbol;
+  }
+
+  bool GetIsAppend() const {
+    return isAppend;
+  }
+
+  const std::string &GetAppendSplit() const {
+    return appendSplit;
+  }
+
+  bool GetNeedRootPath() const {
+    return needRootPath;
+  }
+
+ private:
   // option key
   std::string key;
   // option value
@@ -50,20 +92,6 @@ class MplOption {
   bool isAppend;
   std::string appendSplit;
   bool needRootPath;
-
- public:
-  void init(const std::string &key, const std::string &value, const std::string &connectSymbol, bool isAppend,
-            const std::string &appendSplit,
-            bool needRootPath = false) {
-    CHECK_FATAL(!key.empty(), "MplOption got an empty key.");
-
-    this->key = key;
-    this->value = value;
-    this->connectSymbol = connectSymbol;
-    this->isAppend = isAppend;
-    this->appendSplit = appendSplit;
-    this->needRootPath = needRootPath;
-  }
 };
 
 struct DefaultOption {
@@ -73,30 +101,6 @@ struct DefaultOption {
 
 class MplOptions {
  public:
-  mapleOption::OptionParser *optionParser;
-  std::map<std::string, std::vector<mapleOption::Option>> options;
-  std::map<std::string, std::vector<mapleOption::Option>> exeOptions;
-  std::string inputFiles;
-  std::string inputFolder;
-  std::string outputFolder;
-  std::string outputName;
-  std::string exeFolder;
-  std::string optLevelStr;
-  InputFileType inputFileType;
-  OptimizationLevel optimizationLevel;
-  bool setDefaultLevel;
-  bool isSaveTmps;
-  std::vector<std::string> saveFiles;
-  std::vector<std::string> splitsInputFiles;
-  std::map<std::string, std::vector<MplOption>> extras;
-  std::vector<std::string> runningExes;
-  bool isWithIpa;
-  std::string printCommandStr;
-  bool debugFlag;
-  bool timePhases;
-  bool genMemPl;
-  bool genVtableImpl;
-  bool verify;
   MplOptions()
       : optionParser(nullptr),
         options({}),
@@ -106,44 +110,142 @@ class MplOptions {
         outputFolder(""),
         outputName("maple"),
         exeFolder(""),
-        optLevelStr(""),
         inputFileType(InputFileType::kNone),
-        optimizationLevel(OptimizationLevel::kO2),
+        optimizationLevel(OptimizationLevel::kO0),
+        runMode(RunMode::kUnkownRun),
         setDefaultLevel(false),
         isSaveTmps(false),
         saveFiles({}),
         splitsInputFiles({}),
         extras({}),
         runningExes({}),
-        isWithIpa(false),
         printCommandStr(""),
         debugFlag(false),
         timePhases(false),
         genMemPl(false),
         genVtableImpl(false),
         verify(false) {}
-  ~MplOptions() {
-    if (optionParser != nullptr) {
-      delete optionParser;
-      optionParser = nullptr;
-    }
-  }
+  ~MplOptions() = default;
 
   int Parse(int argc, char **argv);
   const std::string OptimizationLevelStr() const;
 
+  const std::map<std::string, std::vector<mapleOption::Option>> &GetOptions() const {
+    return options;
+  }
+
+  const std::map<std::string, std::vector<mapleOption::Option>> &GetExeOptions() const {
+    return exeOptions;
+  }
+
+  const std::string &GetInputFiles() const {
+    return inputFiles;
+  }
+
+  const std::string &GetOutputFolder() const {
+    return outputFolder;
+  }
+
+  const std::string &GetOutputName() const {
+    return outputName;
+  }
+
+  const std::string &GetExeFolder() const {
+    return exeFolder;
+  }
+
+  const InputFileType &GetInputFileType() const {
+    return inputFileType;
+  }
+
+  const OptimizationLevel &GetOptimizationLevel() const {
+    return optimizationLevel;
+  }
+
+  const bool GetSetDefaultLevel() const {
+    return setDefaultLevel;
+  }
+
+  const bool GetIsSaveTmps() const {
+    return isSaveTmps;
+  }
+
+  const std::vector<std::string> &GetSaveFiles() const {
+    return saveFiles;
+  }
+
+  const std::vector<std::string> &GetSplitsInputFiles() const {
+    return splitsInputFiles;
+  }
+
+  const std::map<std::string, std::vector<MplOption>> &GetExtras() const {
+    return extras;
+  }
+
+  const std::vector<std::string> &GetRunningExes() const {
+    return runningExes;
+  }
+
+  const std::string &GetPrintCommandStr() const {
+    return printCommandStr;
+  }
+
+  const bool GetDebugFlag() const {
+    return debugFlag;
+  }
+
+  const bool GetTimePhases() const {
+    return timePhases;
+  }
+
+  const bool GetGenMemPl() const {
+    return genMemPl;
+  }
+
+  const bool GetGenVtableImpl() const {
+    return genVtableImpl;
+  }
+
+  const bool GetVerify() const {
+    return verify;
+  }
+
  private:
+  std::unique_ptr<mapleOption::OptionParser> optionParser;
+  std::map<std::string, std::vector<mapleOption::Option>> options;
+  std::map<std::string, std::vector<mapleOption::Option>> exeOptions;
+  std::string inputFiles;
+  std::string inputFolder;
+  std::string outputFolder;
+  std::string outputName;
+  std::string exeFolder;
+  InputFileType inputFileType;
+  OptimizationLevel optimizationLevel;
+  RunMode runMode;
+  bool setDefaultLevel;
+  bool isSaveTmps;
+  std::vector<std::string> saveFiles;
+  std::vector<std::string> splitsInputFiles;
+  std::map<std::string, std::vector<MplOption>> extras;
+  std::vector<std::string> runningExes;
+  std::string printCommandStr;
+  bool debugFlag;
+  bool timePhases;
+  bool genMemPl;
+  bool genVtableImpl;
+  bool verify;
   bool Init(const std::string &inputFile);
   ErrorCode HandleGeneralOptions();
   ErrorCode DecideRunType();
   ErrorCode DecideRunningPhases();
   ErrorCode CheckInputFileValidity();
-  ErrorCode CheckOptLevel(const std::string &inputOpt, const std::string &filterOpt);
+  ErrorCode CheckRunMode(RunMode mode);
   ErrorCode CheckFileExits();
   void AddOption(const mapleOption::Option &option);
-  void UpdateOptLevel(OptimizationLevel level);
   ErrorCode UpdatePhaseOption(const std::string &args, const std::string &exeName);
   ErrorCode UpdateExtraOptionOpt(const std::string &args);
+  ErrorCode AppendDefaultCombOptions();
+  ErrorCode AppendDefaultCgOptions();
   ErrorCode AppendDefaultOptions(const std::string &exeName, MplOption mplOptions[], unsigned int length);
   void UpdateRunningExe(const std::string &args);
 };

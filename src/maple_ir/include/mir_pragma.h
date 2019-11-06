@@ -77,9 +77,9 @@ class MIRPragmaElement {
   }
 
   ~MIRPragmaElement() = default;
-  void Dump(int indent);
-  void PushSubElemVec(MIRPragmaElement &elem) {
-    subElemVec.push_back(&elem);
+  void Dump(int indent) const;
+  void SubElemVecPushBack(MIRPragmaElement *elem) {
+    subElemVec.push_back(elem);
   }
 
   const MapleVector<MIRPragmaElement*> &GetSubElemVec() const {
@@ -187,7 +187,7 @@ class MIRPragma {
 
   ~MIRPragma() = default;
   MIRPragmaElement *GetPragmaElemFromSignature(const std::string &signature);
-  void Dump(int indent);
+  void Dump(int indent) const;
   void PushElementVector(MIRPragmaElement &elem) {
     elementVec.push_back(&elem);
   }
@@ -230,6 +230,10 @@ class MIRPragma {
 
   MapleVector<MIRPragmaElement*> &GetElementVector() {
     return elementVec;
+  }
+
+  void ElementVecPushBack(MIRPragmaElement *elem) {
+    elementVec.push_back(elem);
   }
 
   void SetKind(PragmaKind kind) {
