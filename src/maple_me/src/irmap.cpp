@@ -26,10 +26,10 @@ using MeStmtFactory = FunctionFactory<Opcode, MeStmt*, IRMap*, StmtNode&, Access
 // the CFG to build the HSSA representation for the code in each BB
 void IRMap::BuildBB(BB &bb, std::vector<bool> &bbIRMapProcessed) {
   BBId bbid = bb.GetBBId();
-  if (bbIRMapProcessed[bbid.idx]) {
+  if (bbIRMapProcessed[bbid]) {
     return;
   }
-  bbIRMapProcessed[bbid.idx] = true;
+  bbIRMapProcessed[bbid] = true;
   curBB = &bb;
   SetCurFunction(bb);
   // iterate phi list to update the definition by phi
@@ -41,9 +41,9 @@ void IRMap::BuildBB(BB &bb, std::vector<bool> &bbIRMapProcessed) {
     }
   }
   // travesal bb's dominated tree
-  ASSERT(bbid.idx < dom.GetDomChildrenSize(), " index out of range in IRMap::BuildBB");
-  const MapleSet<BBId> &domChildren = dom.GetDomChildren(bbid.idx);
-  for (auto bbit = domChildren.begin(); bbit != domChildren.end(); bbit++) {
+  ASSERT(bbid < dom.GetDomChildrenSize(), " index out of range in IRMap::BuildBB");
+  const MapleSet<BBId> &domChildren = dom.GetDomChildren(bbid);
+  for (auto bbit = domChildren.begin(); bbit != domChildren.end(); ++bbit) {
     BBId childbbid = *bbit;
     BuildBB(*GetBB(childbbid), bbIRMapProcessed);
   }
@@ -527,7 +527,6 @@ void IRMap::BuildMuList(MapleMap<OStIdx, MayUseNode> &mayuseList, MapleMap<OStId
 
 MeExpr *IRMap::BuildExpr(BaseNode &mirNode) {
   Opcode op = mirNode.GetOpCode();
-
   if (op == OP_dread) {
     AddrofSSANode &addrofnode = static_cast<AddrofSSANode &>(mirNode);
     VersionSt *verSt = addrofnode.GetSSAVar();
@@ -689,6 +688,7 @@ MeExpr *IRMap::ReplaceMeExprExpr(MeExpr &origExpr, MeExpr &meExpr, MeExpr &repEx
 
 bool IRMap::ReplaceMeExprStmtOpnd(uint32 opndID, MeStmt &meStmt, MeExpr &meExpr, MeExpr &repExpr) {
   MeExpr *opnd = meStmt.GetOpnd(opndID);
+
   if (opnd == &meExpr) {
     meStmt.SetOpnd(opndID, &repExpr);
     return true;
@@ -696,6 +696,7 @@ bool IRMap::ReplaceMeExprStmtOpnd(uint32 opndID, MeStmt &meStmt, MeExpr &meExpr,
     meStmt.SetOpnd(opndID, ReplaceMeExprExpr(*opnd, meExpr, repExpr));
     return meStmt.GetOpnd(opndID) != opnd;
   }
+
   return false;
 }
 

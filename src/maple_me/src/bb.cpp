@@ -73,16 +73,16 @@ void BB::DumpBBAttribute(MIRModule *mod) {
 }
 
 void BB::DumpHeader(MIRModule *mod) {
-  mod->GetOut() << "============BB id:" << GetBBId().idx << " " << StrAttribute() << " [";
+  mod->GetOut() << "============BB id:" << GetBBId() << " " << StrAttribute() << " [";
   DumpBBAttribute(mod);
   mod->GetOut() << "]===============\n";
   mod->GetOut() << "preds: ";
   for (const auto &predElement : pred) {
-    mod->GetOut() << predElement->GetBBId().idx << " ";
+    mod->GetOut() << predElement->GetBBId() << " ";
   }
   mod->GetOut() << "\nsuccs: ";
   for (const auto &succElement : succ) {
-    mod->GetOut() << succElement->GetBBId().idx << " ";
+    mod->GetOut() << succElement->GetBBId() << " ";
   }
   mod->GetOut() << "\n";
   if (bbLabel != 0) {
@@ -256,22 +256,22 @@ void BB::ReplaceSuccOfCommonEntryBB(const BB *old, BB *newSucc) {
 }
 
 void BB::FindReachableBBs(std::vector<bool> &visitedBBs) const {
-  CHECK_FATAL(GetBBId().idx < visitedBBs.size(), "out of range in BB::FindReachableBBs");
-  if (visitedBBs[GetBBId().idx]) {
+  CHECK_FATAL(GetBBId() < visitedBBs.size(), "out of range in BB::FindReachableBBs");
+  if (visitedBBs[GetBBId()]) {
     return;
   }
-  visitedBBs[GetBBId().idx] = true;
+  visitedBBs[GetBBId()] = true;
   for (auto it = succ.begin(); it != succ.end(); ++it) {
     (*it)->FindReachableBBs(visitedBBs);
   }
 }
 
 void BB::FindWillExitBBs(std::vector<bool> &visitedBBs) const {
-  CHECK_FATAL(GetBBId().idx < visitedBBs.size(), "out of range in BB::FindReachableBBs");
-  if (visitedBBs[GetBBId().idx]) {
+  CHECK_FATAL(GetBBId() < visitedBBs.size(), "out of range in BB::FindReachableBBs");
+  if (visitedBBs[GetBBId()]) {
     return;
   }
-  visitedBBs[GetBBId().idx] = true;
+  visitedBBs[GetBBId()] = true;
   for (auto it = pred.begin(); it != pred.end(); ++it) {
     (*it)->FindWillExitBBs(visitedBBs);
   }
@@ -283,6 +283,10 @@ void BB::SetFirstMe(MeStmt *stmt) {
 
 void BB::SetLastMe(MeStmt *stmt) {
   meStmtList.update_back(stmt);
+}
+
+MeStmt *BB::GetLastMe() {
+  return &meStmtList.back();
 }
 
 void BB::RemoveMeStmt(MeStmt *meStmt) {
@@ -335,6 +339,27 @@ void BB::ReplaceMeStmt(MeStmt *stmt, MeStmt *newStmt) {
   RemoveMeStmt(stmt);
 }
 
+void BB::DumpMeBB(IRMap &irMap) {
+  for(MeStmt &meStmt : GetMeStmts()) {
+    meStmt.Dump(&irMap);
+  }
+}
+
+void BB::DumpMeVarPaiList(IRMap *irMap) {
+  if (mevarPaiList.size() == 0) {
+    return;
+  }
+  std::cout << "<<<<<<<<<<<<<<  PAI Node Start >>>>>>>>>>>>>>>>>>" << '\n';
+  for (auto pair : mevarPaiList) {
+    BB *bb = pair.first;
+    std::cout << "Frome BB : " << bb->GetBBId() << '\n';
+    for (uint32 j = 0; j < pair.second.size(); ++j) {
+      pair.second.at(j)->Dump(irMap);
+    }
+  }
+  std::cout << "<<<<<<<<<<<<<<  PAI Node End >>>>>>>>>>>>>>>>>>>>" << '\n';
+}
+
 void BB::DumpMeVarPhiList(IRMap *irMap) {
   int count = 0;
   for (auto phiIt = mevarPhiList.begin(); phiIt != mevarPhiList.end(); phiIt++) {
@@ -354,11 +379,11 @@ void BB::DumpMeRegPhiList(IRMap *irMap) {
 }
 
 void SCCOfBBs::Dump() {
-  std::cout << "SCC " << id << " contains" << std::endl;
+  std::cout << "SCC " << id << " contains" << '\n';
   for (BB *bb : bbs) {
     std::cout << "bb(" << bb->UintID() << ")  ";
   }
-  std::cout << std::endl;
+  std::cout << '\n';
 }
 
 bool SCCOfBBs::HasCycle() const {

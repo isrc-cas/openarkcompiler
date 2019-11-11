@@ -14,6 +14,7 @@
  */
 #ifndef MAPLE_ME_INCLUDE_BB_H
 #define MAPLE_ME_INCLUDE_BB_H
+#include "mpl_number.h"
 #include "ptr_list_ref.h"
 #include "ssa.h"
 
@@ -23,6 +24,7 @@ class OriginalSt;  // circular dependency exists, no other choice
 class MeStmt;  // circular dependency exists, no other choice
 class MeVarPhiNode;  // circular dependency exists, no other choice
 class MeRegPhiNode;  // circular dependency exists, no other choice
+class PaiassignMeStmt;
 class IRMap;  // circular dependency exists, no other choice
 enum BBKind {
   kBBUnknown,  // uninitialized
@@ -51,25 +53,8 @@ enum BBAttr {
   kBBIsInLoopForEA   // For EA use
 };
 
-struct BBId {
-  size_t idx = 0;
-
-  BBId() = default;
-
-  explicit BBId(size_t i) : idx(i) {}
-
-  bool operator==(const BBId &x) const {
-    return idx == x.idx;
-  }
-
-  bool operator!=(const BBId &x) const {
-    return idx != x.idx;
-  }
-
-  bool operator<(const BBId &x) const {
-    return idx < x.idx;
-  }
-};
+class BB;
+using BBId = utils::Index<BB>;
 
 struct OStIdx {
   size_t idx = 0;
@@ -117,6 +102,7 @@ class BB {
         phiList(versAlloc->Adapter()),
         mevarPhiList(alloc->Adapter()),
         meregPhiList(alloc->Adapter()),
+        mevarPaiList(alloc->Adapter()),
         frequency(0),
         kind(kBBUnknown),
         attributes(0) {
@@ -134,6 +120,7 @@ class BB {
         phiList(versAlloc->Adapter()),
         mevarPhiList(alloc->Adapter()),
         meregPhiList(alloc->Adapter()),
+        mevarPaiList(alloc->Adapter()),
         frequency(0),
         kind(kBBUnknown),
         attributes(0),
@@ -197,7 +184,7 @@ class BB {
   }
 
   uint32 UintID() const {
-    return static_cast<uint32>(id.idx);
+    return static_cast<uint32>(id);
   }
 
   StmtNode *GetTheOnlyStmtNode() const;
@@ -223,6 +210,7 @@ class BB {
 
   void SetFirstMe(MeStmt *stmt);
   void SetLastMe(MeStmt *stmt);
+  MeStmt *GetLastMe();
   bool IsInList(const MapleVector<BB*> &bbList) const;
   bool IsPredBB(const BB &bb) const {
     // if this is a pred of bb return true;
@@ -233,6 +221,7 @@ class BB {
   bool IsSuccBB(const BB &bb) const {
     return IsInList(bb.succ);
   }
+  void DumpMeBB(IRMap &irMap);
 
   void AddSuccBB(BB *succPara) {
     succ.push_back(succPara);
@@ -262,6 +251,18 @@ class BB {
     RemoveBBFromSucc(succBB);
   }
 
+  void InsertPai(BB &bb, PaiassignMeStmt &s) {
+    if (mevarPaiList.find(&bb) == mevarPaiList.end()) {
+      std::vector<PaiassignMeStmt*> tmp;
+      mevarPaiList[&bb] = tmp;
+    }
+    mevarPaiList[&bb].push_back(&s);
+  }
+
+  MapleMap<BB*, std::vector<PaiassignMeStmt*>>& GetPaiList() {
+    return mevarPaiList;
+  }
+
   bool IsMeStmtEmpty() const {
     return meStmtList.empty();
   }
@@ -280,7 +281,7 @@ class BB {
   void ReplaceMeStmt(MeStmt *stmt, MeStmt *newStmt);
   void DumpMeVarPhiList(IRMap *irMap);
   void DumpMeRegPhiList(IRMap *irMap);
-
+  void DumpMeVarPaiList(IRMap *irMap);
   StmtNodes &GetStmtNodes() {
     return stmtNodeList;
   }
@@ -403,6 +404,7 @@ class BB {
   MapleMap<const OriginalSt*, PhiNode> phiList;
   MapleMap<OStIdx, MeVarPhiNode*> mevarPhiList;
   MapleMap<OStIdx, MeRegPhiNode*> meregPhiList;
+  MapleMap<BB*, std::vector<PaiassignMeStmt*>> mevarPaiList;
   uint32 frequency;
   BBKind kind;
   uint32 attributes;
@@ -460,7 +462,7 @@ namespace std {
 template <>
 struct hash<maple::BBId> {
   size_t operator()(const maple::BBId &x) const {
-    return x.idx;
+    return x;
   }
 };
 
