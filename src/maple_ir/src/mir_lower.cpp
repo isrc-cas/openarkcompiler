@@ -208,7 +208,7 @@ BlockNode *MIRLower::LowerDoloopStmt(DoloopNode &doloop) {
     endRegassign->SetOpnd(add);
     blk->AddStatement(endRegassign);
   } else {
-    MIRSymbol *doVarSym = mirModule.CurFunction()->GetLocalOrGlobalSymbol(doloop.GetDoVarStIdx());
+    const MIRSymbol *doVarSym = mirModule.CurFunction()->GetLocalOrGlobalSymbol(doloop.GetDoVarStIdx());
     PrimType doVarPType = doVarSym->GetType()->GetPrimType();
     DreadNode *readDovar =
         mirModule.CurFuncCodeMemPool()->New<DreadNode>(OP_dread, doVarPType, doloop.GetDoVarStIdx(), 0);
@@ -386,7 +386,7 @@ ForeachelemNode *MIRLower::ExpandArrayMrtForeachelemBlock(ForeachelemNode &node)
 void MIRLower::AddArrayMrtMpl(BaseNode &exp, BlockNode &newBlock) {
   MIRModule &mod = mirModule;
   MIRBuilder *builder = mod.GetMIRBuilder();
-  for (size_t i = 0; i < exp.NumOpnds(); i++) {
+  for (size_t i = 0; i < exp.NumOpnds(); ++i) {
     ASSERT(exp.Opnd(i) != nullptr, "nullptr check");
     AddArrayMrtMpl(*exp.Opnd(i), newBlock);
   }

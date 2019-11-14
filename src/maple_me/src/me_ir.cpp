@@ -18,6 +18,7 @@
 #include "printing.h"
 #include "me_ssa.h"
 #include "mir_function.h"
+#include "global_tables.h"
 
 namespace maple {
 constexpr int32_t kDefaultPrintIndentNum = 5;
@@ -312,7 +313,7 @@ bool IvarMeExpr::IsUseSameSymbol(const MeExpr &expr) const {
   return false;
 }
 
-bool IvarMeExpr::IsVolatile() {
+bool IvarMeExpr::IsVolatile() const {
   MIRPtrType *ty = static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx));
   MIRType *pointedType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ty->GetPointedTyIdx());
   if (fieldID == 0) {
@@ -334,7 +335,7 @@ bool IvarMeExpr::IsFinal() {
  * check paragma
  *   pragma 0 var %keySet <$Ljava_2Flang_2Fannotation_2FRCWeakRef_3B>
  */
-bool IvarMeExpr::IsRCWeak() {
+bool IvarMeExpr::IsRCWeak() const {
   MIRPtrType *ty = static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx));
   MIRType *pointedType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ty->GetPointedTyIdx());
   if (pointedType->GetKind() == kTypeClass) {

@@ -18,11 +18,30 @@
 #include "mir_symbol.h"
 #include "mir_preg.h"
 #include "mir_function.h"
-#include "bb.h"
 
 // This file defines the data structure OriginalSt that represents a program
 // symbol occurring in the code of the program being optimized.
 namespace maple {
+struct OStIdx {
+  size_t idx = 0;
+
+  OStIdx() = default;
+
+  explicit OStIdx(size_t i) : idx(i) {}
+
+  bool operator==(const OStIdx &x) const {
+    return idx == x.idx;
+  }
+
+  bool operator!=(const OStIdx &x) const {
+    return idx != x.idx;
+  }
+
+  bool operator<(const OStIdx &x) const {
+    return idx < x.idx;
+  }
+};
+
 constexpr int kInitVersion = 0;
 class VarMeExpr;  // circular dependency exists, no other choice
 class OriginalSt {
@@ -31,19 +50,10 @@ class OriginalSt {
       : ostType(kUnkonwnOst),
         index(index),
         versionsIndex(alloc.Adapter()),
-        zeroVersionIndex(0),
-        tyIdx(0),
         fieldID(fieldIDPara),
-        indirectLev(0),
         isLocal(local),
         isFormal(isFormal),
-        addressTaken(false),
-        isFinal(false),
-        isPrivate(false),
-        ignoreRC(false),
-        epreLocalRefVar(false),
-        symOrPreg(),
-        puIdx(0) {}
+        symOrPreg() {}
 
   OriginalSt(uint32 index, PregIdx rIdx, PUIdx pIdx, MapleAllocator &alloc)
       : OriginalSt(OStIdx(index), alloc, true, false, 0) {
@@ -219,17 +229,17 @@ class OriginalSt {
 
   OStIdx index;                       // index number in originalStVector
   MapleVector<size_t> versionsIndex;  // the i-th element refers the index of versionst in versionst table
-  size_t zeroVersionIndex;            // same as versionsIndex[0]
-  TyIdx tyIdx;                        // type of this symbol at this level; 0 for unknown
+  size_t zeroVersionIndex = 0;            // same as versionsIndex[0]
+  TyIdx tyIdx{ 0 };                        // type of this symbol at this level; 0 for unknown
   FieldID fieldID;                    // at each level of indirection
-  int8 indirectLev;                   // level of indirection; -1 for address, 0 for itself
+  int8 indirectLev = 0;                   // level of indirection; -1 for address, 0 for itself
   bool isLocal;                       // get from defined stmt or use expr
   bool isFormal;  // it's from the formal parameters so the type must be kSymbolOst or kPregOst after rename2preg
-  bool addressTaken;
-  bool isFinal;          // if the field has final attribute, only when fieldID != 0
-  bool isPrivate;        // if the field has private attribute, only when fieldID != 0
-  bool ignoreRC;         // base on MIRSymbol's IgnoreRC()
-  bool epreLocalRefVar;  // is a localrefvar temp created by epre phase
+  bool addressTaken = false;
+  bool isFinal = false;          // if the field has final attribute, only when fieldID != 0
+  bool isPrivate = false;        // if the field has private attribute, only when fieldID != 0
+  bool ignoreRC = false;         // base on MIRSymbol's IgnoreRC()
+  bool epreLocalRefVar = false;  // is a localrefvar temp created by epre phase
   union {
     PregIdx pregIdx;
     MIRSymbol *mirSt;
@@ -249,15 +259,15 @@ class OriginalStTable {
   OriginalSt *CreateSymbolOriginalSt(MIRSymbol &mirSt, PUIdx pidx, FieldID fld);
   OriginalSt *CreatePregOriginalSt(PregIdx pregIdx, PUIdx puIdx);
   OriginalSt *FindSymbolOriginalSt(MIRSymbol &mirSt);
-  const OriginalSt *GetOriginalStFromID(OStIdx id, bool checkfirst = false) const {
-    if (checkfirst && id.idx >= originalStVector.size()) {
+  const OriginalSt *GetOriginalStFromID(OStIdx id, bool checkFirst = false) const {
+    if (checkFirst && id.idx >= originalStVector.size()) {
       return nullptr;
     }
     ASSERT(id.idx < originalStVector.size(), "symbol table index out of range");
     return originalStVector[id.idx];
   }
-  OriginalSt *GetOriginalStFromID(OStIdx id, bool checkfirst = false) {
-    if (checkfirst && id.idx >= originalStVector.size()) {
+  OriginalSt *GetOriginalStFromID(OStIdx id, bool checkFirst = false) {
+    if (checkFirst && id.idx >= originalStVector.size()) {
       return nullptr;
     }
     ASSERT(id.idx < originalStVector.size(), "symbol table index out of range");
@@ -330,4 +340,13 @@ class OriginalStTable {
   OStIdx virtuaLostConstMem;
 };
 }  // namespace maple
+
+namespace std {
+template <>
+struct hash<maple::OStIdx> {
+  size_t operator()(const maple::OStIdx &x) const {
+    return x.idx;
+  }
+};
+}  // namespace std
 #endif  // MAPLE_ME_INCLUDE_ORIG_SYMBOL_H
