@@ -1,4 +1,4 @@
-#!/bi/bash
+#!/bin/bash
 
 # Fail quickly with verbose logging.
 set -ex
